@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { TextInput, Text, Divider, RadioButton } from 'react-native-paper';
-import { VictoryChart, VictoryLine, VictoryAxis, VictoryTheme, VictoryScatter } from 'victory-native';
+import { View, StyleSheet } from 'react-native';
+import { TextInput, Divider, Text } from 'react-native-paper';
+import DropDownPicker from 'react-native-dropdown-picker';
 
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
@@ -12,12 +12,21 @@ export default function PivotPointsCalculator() {
   const [highPrice, setHighPrice] = useState('1.2000');
   const [lowPrice, setLowPrice] = useState('1.1800');
   const [closePrice, setClosePrice] = useState('1.1900');
+  
+  // State for method dropdown
+  const [methodOpen, setMethodOpen] = useState(false);
   const [method, setMethod] = useState('standard');
+  const [methodItems, setMethodItems] = useState([
+    { label: 'Standard', value: 'standard' },
+    { label: "Woodie's", value: 'woodie' },
+    { label: 'Camarilla', value: 'camarilla' },
+    { label: 'DeMark', value: 'demark' },
+  ]);
   
   // State for results
-  const [pivotPoint, setPivotPoint] = useState(0);
-  const [resistanceLevels, setResistanceLevels] = useState<number[]>([]);
-  const [supportLevels, setSupportLevels] = useState<number[]>([]);
+  const [pivot, setPivot] = useState(0);
+  const [resistance, setResistance] = useState<number[]>([0, 0, 0]);
+  const [support, setSupport] = useState<number[]>([0, 0, 0]);
   
   // Calculate results when inputs change
   useEffect(() => {
@@ -25,45 +34,20 @@ export default function PivotPointsCalculator() {
   }, [highPrice, lowPrice, closePrice, method]);
   
   const calculateResults = () => {
-    const high = parseFloat(highPrice) || 0;
-    const low = parseFloat(lowPrice) || 0;
-    const close = parseFloat(closePrice) || 0;
+    const highPriceNum = parseFloat(highPrice) || 0;
+    const lowPriceNum = parseFloat(lowPrice) || 0;
+    const closePriceNum = parseFloat(closePrice) || 0;
     
-    if (high <= 0 || low <= 0 || close <= 0) return;
-    
-    const { pivot, resistance, support } = calculatePivotPoints(
-      high,
-      low,
-      close,
+    const { pivot: calculatedPivot, resistance: calculatedResistance, support: calculatedSupport } = calculatePivotPoints(
+      highPriceNum,
+      lowPriceNum,
+      closePriceNum,
       method as 'standard' | 'woodie' | 'camarilla' | 'demark'
     );
     
-    setPivotPoint(pivot);
-    setResistanceLevels(resistance);
-    setSupportLevels(support);
-  };
-  
-  // Prepare chart data
-  const getChartData = () => {
-    if (!pivotPoint) return [];
-    
-    const allLevels = [
-      { name: 'R3', value: resistanceLevels[2], type: 'resistance' },
-      { name: 'R2', value: resistanceLevels[1], type: 'resistance' },
-      { name: 'R1', value: resistanceLevels[0], type: 'resistance' },
-      { name: 'PP', value: pivotPoint, type: 'pivot' },
-      { name: 'S1', value: supportLevels[0], type: 'support' },
-      { name: 'S2', value: supportLevels[1], type: 'support' },
-      { name: 'S3', value: supportLevels[2], type: 'support' },
-    ];
-    
-    // Sort by price (descending)
-    return allLevels.sort((a, b) => b.value - a.value).map(level => ({
-      x: 1,
-      y: level.value,
-      name: level.name,
-      type: level.type
-    }));
+    setPivot(calculatedPivot);
+    setResistance(calculatedResistance);
+    setSupport(calculatedSupport);
   };
   
   return (
@@ -109,44 +93,21 @@ export default function PivotPointsCalculator() {
             theme={{ colors: { background: '#2A2A2A' } }}
           />
           
-          <Text style={styles.radioLabel}>Calculation Method</Text>
-          <RadioButton.Group
-            onValueChange={value => setMethod(value)}
-            value={method}
-          >
-            <View style={styles.radioContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <RadioButton.Item
-                  label="Standard"
-                  value="standard"
-                  color="#6200ee"
-                  labelStyle={styles.radioLabel}
-                  style={styles.radioButton}
-                />
-                <RadioButton.Item
-                  label="Woodie's"
-                  value="woodie"
-                  color="#6200ee"
-                  labelStyle={styles.radioLabel}
-                  style={styles.radioButton}
-                />
-                <RadioButton.Item
-                  label="Camarilla"
-                  value="camarilla"
-                  color="#6200ee"
-                  labelStyle={styles.radioLabel}
-                  style={styles.radioButton}
-                />
-                <RadioButton.Item
-                  label="DeMark"
-                  value="demark"
-                  color="#6200ee"
-                  labelStyle={styles.radioLabel}
-                  style={styles.radioButton}
-                />
-              </ScrollView>
-            </View>
-          </RadioButton.Group>
+          <View style={[styles.dropdownContainer, { zIndex: 3000 }]}>
+            <Text style={styles.dropdownLabel}>Calculation Method</Text>
+            <DropDownPicker
+              open={methodOpen}
+              value={method}
+              items={methodItems}
+              setOpen={setMethodOpen}
+              setValue={setMethod}
+              setItems={setMethodItems}
+              style={styles.dropdown}
+              textStyle={styles.dropdownText}
+              dropDownContainerStyle={styles.dropdownList}
+              listMode="SCROLLVIEW"
+            />
+          </View>
         </View>
         
         <Divider style={styles.divider} />
@@ -154,89 +115,45 @@ export default function PivotPointsCalculator() {
         <View style={styles.resultsContainer}>
           <ResultDisplay
             label="Pivot Point (PP)"
-            value={formatNumber(pivotPoint, 5)}
-            color="#FFC107"
+            value={formatNumber(pivot, 5)}
+            color="#6200ee"
             isLarge
           />
           
+          <Divider style={styles.smallDivider} />
+          
+          <Text style={styles.sectionTitle}>Resistance Levels</Text>
           <View style={styles.levelsContainer}>
-            <View style={styles.levelSection}>
-              <Text style={styles.sectionTitle}>Resistance Levels</Text>
-              {resistanceLevels.map((level, index) => (
-                <View key={`resistance-${index}`} style={styles.levelRow}>
-                  <Text style={styles.levelName}>R{index + 1}</Text>
-                  <Text style={[styles.levelValue, { color: '#F44336' }]}>
-                    {formatNumber(level, 5)}
-                  </Text>
-                </View>
-              ))}
+            <View style={styles.levelRow}>
+              <Text style={styles.levelLabel}>R1</Text>
+              <Text style={styles.levelValue}>{formatNumber(resistance[0], 5)}</Text>
             </View>
-            
-            <View style={styles.levelSection}>
-              <Text style={styles.sectionTitle}>Support Levels</Text>
-              {supportLevels.map((level, index) => (
-                <View key={`support-${index}`} style={styles.levelRow}>
-                  <Text style={styles.levelName}>S{index + 1}</Text>
-                  <Text style={[styles.levelValue, { color: '#4CAF50' }]}>
-                    {formatNumber(level, 5)}
-                  </Text>
-                </View>
-              ))}
+            <View style={styles.levelRow}>
+              <Text style={styles.levelLabel}>R2</Text>
+              <Text style={styles.levelValue}>{formatNumber(resistance[1], 5)}</Text>
+            </View>
+            <View style={styles.levelRow}>
+              <Text style={styles.levelLabel}>R3</Text>
+              <Text style={styles.levelValue}>{formatNumber(resistance[2], 5)}</Text>
             </View>
           </View>
           
-          <View style={styles.chartContainer}>
-            <Text style={styles.chartTitle}>Price Levels</Text>
-            <VictoryChart
-              theme={VictoryTheme.material}
-              domainPadding={20}
-              height={300}
-              padding={{ top: 10, bottom: 40, left: 60, right: 40 }}
-              domain={{ x: [0, 2] }}
-            >
-              <VictoryAxis
-                style={{
-                  axis: { stroke: 'transparent' },
-                  tickLabels: { fill: 'transparent' },
-                  grid: { stroke: 'transparent' },
-                }}
-              />
-              <VictoryAxis
-                dependentAxis
-                style={{
-                  axis: { stroke: '#ccc' },
-                  tickLabels: { fill: '#ccc', fontSize: 10 },
-                  grid: { stroke: 'rgba(255,255,255,0.1)' },
-                }}
-              />
-              <VictoryScatter
-                data={getChartData()}
-                size={6}
-                style={{
-                  data: {
-                    fill: ({ datum }) => {
-                      if (datum.type === 'pivot') return '#FFC107';
-                      if (datum.type === 'resistance') return '#F44336';
-                      return '#4CAF50';
-                    }
-                  }
-                }}
-                labels={({ datum }) => `${datum.name} - ${formatNumber(datum.y, 5)}`}
-                labelComponent={
-                  <VictoryScatter
-                    labelComponent={
-                      <Text style={{ fontSize: 10, color: '#fff' }} />
-                    }
-                  />
-                }
-              />
-              <VictoryLine
-                data={getChartData()}
-                style={{
-                  data: { stroke: 'rgba(255,255,255,0.3)', strokeWidth: 1 },
-                }}
-              />
-            </VictoryChart>
+          <Divider style={styles.smallDivider} />
+          
+          <Text style={styles.sectionTitle}>Support Levels</Text>
+          <View style={styles.levelsContainer}>
+            <View style={styles.levelRow}>
+              <Text style={styles.levelLabel}>S1</Text>
+              <Text style={styles.levelValue}>{formatNumber(support[0], 5)}</Text>
+            </View>
+            <View style={styles.levelRow}>
+              <Text style={styles.levelLabel}>S2</Text>
+              <Text style={styles.levelValue}>{formatNumber(support[1], 5)}</Text>
+            </View>
+            <View style={styles.levelRow}>
+              <Text style={styles.levelLabel}>S3</Text>
+              <Text style={styles.levelValue}>{formatNumber(support[2], 5)}</Text>
+            </View>
           </View>
         </View>
       </CalculatorCard>
@@ -255,31 +172,36 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#2A2A2A',
   },
-  radioLabel: {
-    fontSize: 14,
-    color: '#fff',
-  },
-  radioContainer: {
+  dropdownContainer: {
     marginBottom: 16,
   },
-  radioButton: {
-    paddingHorizontal: 8,
+  dropdownLabel: {
+    fontSize: 14,
+    color: '#aaa',
+    marginBottom: 8,
+  },
+  dropdown: {
+    backgroundColor: '#2A2A2A',
+    borderColor: '#444',
+    borderRadius: 8,
+  },
+  dropdownText: {
+    color: '#fff',
+  },
+  dropdownList: {
+    backgroundColor: '#2A2A2A',
+    borderColor: '#444',
   },
   divider: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     marginVertical: 16,
   },
+  smallDivider: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginVertical: 12,
+  },
   resultsContainer: {
     marginTop: 8,
-  },
-  levelsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-  },
-  levelSection: {
-    flex: 1,
-    marginHorizontal: 4,
   },
   sectionTitle: {
     fontSize: 16,
@@ -287,27 +209,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 8,
   },
+  levelsContainer: {
+    marginBottom: 16,
+  },
   levelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
-  levelName: {
-    color: '#aaa',
+  levelLabel: {
+    color: '#6200ee',
     fontWeight: 'bold',
   },
   levelValue: {
-    fontWeight: 'bold',
-  },
-  chartContainer: {
-    marginTop: 24,
-  },
-  chartTitle: {
-    fontSize: 16,
     color: '#fff',
-    marginBottom: 8,
-    fontWeight: 'bold',
   },
 });

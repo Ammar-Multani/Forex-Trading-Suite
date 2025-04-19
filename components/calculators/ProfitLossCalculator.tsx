@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { TextInput, Text, Divider, RadioButton } from 'react-native-paper';
+import { View, StyleSheet, Switch } from 'react-native';
+import { TextInput, Divider, Text } from 'react-native-paper';
 
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
-import CurrencyPairSelector from '../ui/CurrencyPairSelector';
 import AccountCurrencySelector from '../ui/AccountCurrencySelector';
-import { calculateProfitLoss, formatNumber, formatCurrency } from '../../utils/calculators';
+import CurrencyPairSelector from '../ui/CurrencyPairSelector';
+import { calculateProfitLoss, formatCurrency, formatNumber } from '../../utils/calculators';
 
 export default function ProfitLossCalculator() {
   // State for inputs
@@ -15,7 +15,7 @@ export default function ProfitLossCalculator() {
   const [entryPrice, setEntryPrice] = useState('1.1000');
   const [exitPrice, setExitPrice] = useState('1.1050');
   const [positionSize, setPositionSize] = useState('1');
-  const [positionType, setPositionType] = useState('long');
+  const [isLong, setIsLong] = useState(true);
   
   // State for results
   const [pips, setPips] = useState(0);
@@ -25,31 +25,28 @@ export default function ProfitLossCalculator() {
   // Calculate results when inputs change
   useEffect(() => {
     calculateResults();
-  }, [accountCurrency, currencyPair, entryPrice, exitPrice, positionSize, positionType]);
+  }, [accountCurrency, currencyPair, entryPrice, exitPrice, positionSize, isLong]);
   
   const calculateResults = () => {
-    const entry = parseFloat(entryPrice) || 0;
-    const exit = parseFloat(exitPrice) || 0;
-    const size = parseFloat(positionSize) || 0;
-    const isLong = positionType === 'long';
+    const entryPriceNum = parseFloat(entryPrice) || 0;
+    const exitPriceNum = parseFloat(exitPrice) || 0;
+    const positionSizeNum = parseFloat(positionSize) || 0;
     
-    if (entry <= 0 || exit <= 0 || size <= 0) return;
-    
-    const { pips: pipsDiff, profitLoss: pl, roi: returnOnInvestment } = calculateProfitLoss(
-      entry,
-      exit,
-      size,
+    const { pips: calculatedPips, profitLoss: calculatedPL, roi: calculatedRoi } = calculateProfitLoss(
+      entryPriceNum,
+      exitPriceNum,
+      positionSizeNum,
       currencyPair,
       accountCurrency,
       isLong
     );
     
-    setPips(pipsDiff);
-    setProfitLoss(pl);
-    setRoi(returnOnInvestment);
+    setPips(calculatedPips);
+    setProfitLoss(calculatedPL);
+    setRoi(calculatedRoi);
   };
   
-  const isProfit = profitLoss > 0;
+  const togglePosition = () => setIsLong(!isLong);
   
   return (
     <View style={styles.container}>
@@ -65,28 +62,19 @@ export default function ProfitLossCalculator() {
             onChange={setCurrencyPair}
           />
           
-          <Text style={styles.radioLabel}>Position Type</Text>
-          <RadioButton.Group
-            onValueChange={value => setPositionType(value)}
-            value={positionType}
-          >
-            <View style={styles.radioContainer}>
-              <RadioButton.Item
-                label="Long (Buy)"
-                value="long"
-                color="#6200ee"
-                labelStyle={styles.radioLabel}
-                style={styles.radioButton}
+          <View style={styles.positionTypeContainer}>
+            <Text style={styles.positionTypeLabel}>Position Type</Text>
+            <View style={styles.switchContainer}>
+              <Text style={[styles.positionTypeText, !isLong && styles.activePositionType]}>Short</Text>
+              <Switch
+                value={isLong}
+                onValueChange={togglePosition}
+                trackColor={{ false: '#767577', true: '#6200ee' }}
+                thumbColor="#f4f3f4"
               />
-              <RadioButton.Item
-                label="Short (Sell)"
-                value="short"
-                color="#6200ee"
-                labelStyle={styles.radioLabel}
-                style={styles.radioButton}
-              />
+              <Text style={[styles.positionTypeText, isLong && styles.activePositionType]}>Long</Text>
             </View>
-          </RadioButton.Group>
+          </View>
           
           <TextInput
             label="Entry Price"
@@ -134,33 +122,21 @@ export default function ProfitLossCalculator() {
           <ResultDisplay
             label="Profit/Loss"
             value={formatCurrency(profitLoss, accountCurrency)}
-            color={isProfit ? '#4CAF50' : '#F44336'}
+            color={profitLoss >= 0 ? '#4CAF50' : '#F44336'}
             isLarge
           />
           
           <ResultDisplay
             label="Pips"
             value={formatNumber(pips, 1)}
-            color={isProfit ? '#4CAF50' : '#F44336'}
+            color={pips >= 0 ? '#4CAF50' : '#F44336'}
           />
           
           <ResultDisplay
             label="Return on Investment"
             value={`${formatNumber(roi, 2)}%`}
-            color={isProfit ? '#4CAF50' : '#F44336'}
+            color={roi >= 0 ? '#4CAF50' : '#F44336'}
           />
-          
-          <View style={[
-            styles.resultIndicator,
-            { backgroundColor: isProfit ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)' }
-          ]}>
-            <Text style={[
-              styles.indicatorText,
-              { color: isProfit ? '#4CAF50' : '#F44336' }
-            ]}>
-              {isProfit ? 'PROFIT' : 'LOSS'}
-            </Text>
-          </View>
         </View>
       </CalculatorCard>
     </View>
@@ -178,17 +154,26 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#2A2A2A',
   },
-  radioLabel: {
-    fontSize: 14,
-    color: '#fff',
-  },
-  radioContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  positionTypeContainer: {
     marginBottom: 16,
   },
-  radioButton: {
-    flex: 1,
+  positionTypeLabel: {
+    fontSize: 14,
+    color: '#aaa',
+    marginBottom: 8,
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  positionTypeText: {
+    marginHorizontal: 8,
+    color: '#aaa',
+  },
+  activePositionType: {
+    color: '#6200ee',
+    fontWeight: 'bold',
   },
   divider: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -196,15 +181,5 @@ const styles = StyleSheet.create({
   },
   resultsContainer: {
     marginTop: 8,
-  },
-  resultIndicator: {
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  indicatorText: {
-    fontSize: 18,
-    fontWeight: 'bold',
   },
 });

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { TextInput, Text, Divider } from 'react-native-paper';
+import { TextInput, Divider } from 'react-native-paper';
 
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
-import CurrencyPairSelector from '../ui/CurrencyPairSelector';
 import AccountCurrencySelector from '../ui/AccountCurrencySelector';
+import CurrencyPairSelector from '../ui/CurrencyPairSelector';
 import { calculatePipValue, formatCurrency } from '../../utils/calculators';
 
 export default function PipCalculator() {
@@ -25,14 +25,17 @@ export default function PipCalculator() {
   }, [accountCurrency, currencyPair, positionSize, pips]);
   
   const calculateResults = () => {
-    const positionSizeValue = parseFloat(positionSize) || 0;
-    const pipsValue = parseFloat(pips) || 0;
+    const positionSizeNum = parseFloat(positionSize) || 0;
+    const pipsNum = parseFloat(pips) || 0;
     
-    if (positionSizeValue <= 0) return;
+    const calculatedPipValue = calculatePipValue(
+      currencyPair,
+      accountCurrency,
+      positionSizeNum
+    );
     
-    const singlePipValue = calculatePipValue(currencyPair, accountCurrency, positionSizeValue);
-    setPipValue(singlePipValue);
-    setTotalValue(singlePipValue * pipsValue);
+    setPipValue(calculatedPipValue);
+    setTotalValue(calculatedPipValue * pipsNum);
   };
   
   return (
@@ -80,29 +83,17 @@ export default function PipCalculator() {
         
         <View style={styles.resultsContainer}>
           <ResultDisplay
-            label="Value per Pip"
-            value={formatCurrency(pipValue, accountCurrency, 2)}
+            label="Pip Value"
+            value={formatCurrency(pipValue, accountCurrency)}
             color="#4CAF50"
+            isLarge
           />
           
           <ResultDisplay
             label={`Total Value for ${pips} Pips`}
-            value={formatCurrency(totalValue, accountCurrency, 2)}
+            value={formatCurrency(totalValue, accountCurrency)}
             color="#2196F3"
-            isLarge
           />
-          
-          <View style={styles.infoContainer}>
-            <Text style={styles.infoText}>
-              1 Standard Lot = 100,000 units
-            </Text>
-            <Text style={styles.infoText}>
-              1 Mini Lot = 10,000 units
-            </Text>
-            <Text style={styles.infoText}>
-              1 Micro Lot = 1,000 units
-            </Text>
-          </View>
         </View>
       </CalculatorCard>
     </View>
@@ -126,18 +117,5 @@ const styles = StyleSheet.create({
   },
   resultsContainer: {
     marginTop: 8,
-  },
-  infoContainer: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
-  },
-  infoText: {
-    color: '#2196F3',
-    fontSize: 14,
-    marginBottom: 4,
   },
 });

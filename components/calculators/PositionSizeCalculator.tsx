@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { TextInput, Text, Divider, ProgressBar } from 'react-native-paper';
+import { TextInput, Divider } from 'react-native-paper';
 
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
-import CurrencyPairSelector from '../ui/CurrencyPairSelector';
 import AccountCurrencySelector from '../ui/AccountCurrencySelector';
-import { calculatePositionSize, formatNumber, formatCurrency } from '../../utils/calculators';
+import CurrencyPairSelector from '../ui/CurrencyPairSelector';
+import { calculatePositionSize, formatCurrency, formatNumber } from '../../utils/calculators';
 
 export default function PositionSizeCalculator() {
   // State for inputs
@@ -28,25 +28,23 @@ export default function PositionSizeCalculator() {
   }, [accountCurrency, currencyPair, accountBalance, riskPercentage, entryPrice, stopLossPips]);
   
   const calculateResults = () => {
-    const balance = parseFloat(accountBalance) || 0;
-    const risk = parseFloat(riskPercentage) || 0;
-    const entry = parseFloat(entryPrice) || 0;
-    const stopLoss = parseFloat(stopLossPips) || 0;
+    const accountBalanceNum = parseFloat(accountBalance) || 0;
+    const riskPercentageNum = parseFloat(riskPercentage) || 0;
+    const entryPriceNum = parseFloat(entryPrice) || 0;
+    const stopLossPipsNum = parseFloat(stopLossPips) || 0;
     
-    if (balance <= 0 || risk <= 0 || entry <= 0 || stopLoss <= 0) return;
-    
-    const { positionSize: size, riskAmount: amount, pipValue: value } = calculatePositionSize(
-      balance,
-      risk,
-      entry,
-      stopLoss,
+    const { positionSize: calculatedSize, riskAmount: calculatedRisk, pipValue: calculatedPipValue } = calculatePositionSize(
+      accountBalanceNum,
+      riskPercentageNum,
+      entryPriceNum,
+      stopLossPipsNum,
       currencyPair,
       accountCurrency
     );
     
-    setPositionSize(size);
-    setRiskAmount(amount);
-    setPipValue(value);
+    setPositionSize(calculatedSize);
+    setRiskAmount(calculatedRisk);
+    setPipValue(calculatedPipValue);
   };
   
   return (
@@ -105,7 +103,7 @@ export default function PositionSizeCalculator() {
           />
           
           <TextInput
-            label="Stop Loss (in pips)"
+            label="Stop Loss (Pips)"
             value={stopLossPips}
             onChangeText={setStopLossPips}
             keyboardType="numeric"
@@ -123,7 +121,7 @@ export default function PositionSizeCalculator() {
         <View style={styles.resultsContainer}>
           <ResultDisplay
             label="Recommended Position Size"
-            value={`${formatNumber(positionSize, 2)} lots`}
+            value={`${formatNumber(positionSize, 2)} Lots`}
             color="#4CAF50"
             isLarge
           />
@@ -139,22 +137,6 @@ export default function PositionSizeCalculator() {
             value={formatCurrency(pipValue, accountCurrency)}
             color="#2196F3"
           />
-          
-          <View style={styles.riskVisualization}>
-            <Text style={styles.visualizationLabel}>
-              Risk: {formatNumber(parseFloat(riskPercentage) || 0, 1)}% of account
-            </Text>
-            <ProgressBar
-              progress={parseFloat(riskPercentage) / 100 || 0}
-              color={parseFloat(riskPercentage) > 3 ? '#F44336' : '#4CAF50'}
-              style={styles.progressBar}
-            />
-            <View style={styles.riskLevels}>
-              <Text style={[styles.riskLevel, { color: '#4CAF50' }]}>Low</Text>
-              <Text style={[styles.riskLevel, { color: '#FFC107' }]}>Medium</Text>
-              <Text style={[styles.riskLevel, { color: '#F44336' }]}>High</Text>
-            </View>
-          </View>
         </View>
       </CalculatorCard>
     </View>
@@ -178,25 +160,5 @@ const styles = StyleSheet.create({
   },
   resultsContainer: {
     marginTop: 8,
-  },
-  riskVisualization: {
-    marginTop: 24,
-  },
-  visualizationLabel: {
-    fontSize: 14,
-    color: '#aaa',
-    marginBottom: 8,
-  },
-  progressBar: {
-    height: 8,
-    borderRadius: 4,
-  },
-  riskLevels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  riskLevel: {
-    fontSize: 12,
   },
 });

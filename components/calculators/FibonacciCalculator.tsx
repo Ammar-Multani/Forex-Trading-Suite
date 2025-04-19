@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { TextInput, Button, Text, Divider, RadioButton } from 'react-native-paper';
-import { VictoryChart, VictoryLine, VictoryAxis, VictoryTheme, VictoryScatter } from 'victory-native';
+import { View, StyleSheet, Switch } from 'react-native';
+import { TextInput, Divider, Text } from 'react-native-paper';
 
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
@@ -10,8 +9,8 @@ import { calculateFibonacciLevels, formatNumber } from '../../utils/calculators'
 export default function FibonacciCalculator() {
   // State for inputs
   const [highPrice, setHighPrice] = useState('1.2000');
-  const [lowPrice, setLowPrice] = useState('1.1800');
-  const [trendDirection, setTrendDirection] = useState('uptrend');
+  const [lowPrice, setLowPrice] = useState('1.1000');
+  const [isUptrend, setIsUptrend] = useState(true);
   
   // State for results
   const [retracements, setRetracements] = useState<Array<{ level: number; price: number }>>([]);
@@ -20,37 +19,23 @@ export default function FibonacciCalculator() {
   // Calculate results when inputs change
   useEffect(() => {
     calculateResults();
-  }, [highPrice, lowPrice, trendDirection]);
+  }, [highPrice, lowPrice, isUptrend]);
   
   const calculateResults = () => {
-    const high = parseFloat(highPrice) || 0;
-    const low = parseFloat(lowPrice) || 0;
-    const isUptrend = trendDirection === 'uptrend';
+    const highPriceNum = parseFloat(highPrice) || 0;
+    const lowPriceNum = parseFloat(lowPrice) || 0;
     
-    if (high <= 0 || low <= 0 || high === low) return;
-    
-    const { retracements: retracementLevels, extensions: extensionLevels } = calculateFibonacciLevels(
-      high,
-      low,
+    const { retracements: calculatedRetracements, extensions: calculatedExtensions } = calculateFibonacciLevels(
+      highPriceNum,
+      lowPriceNum,
       isUptrend
     );
     
-    setRetracements(retracementLevels);
-    setExtensions(extensionLevels);
+    setRetracements(calculatedRetracements);
+    setExtensions(calculatedExtensions);
   };
   
-  // Prepare chart data
-  const getChartData = () => {
-    const allLevels = [...retracements, ...extensions];
-    if (allLevels.length === 0) return [];
-    
-    // Sort by price
-    return allLevels.sort((a, b) => a.price - b.price).map(level => ({
-      x: 1,
-      y: level.price,
-      level: level.level
-    }));
-  };
+  const toggleTrend = () => setIsUptrend(!isUptrend);
   
   return (
     <View style={styles.container}>
@@ -82,28 +67,19 @@ export default function FibonacciCalculator() {
             theme={{ colors: { background: '#2A2A2A' } }}
           />
           
-          <Text style={styles.radioLabel}>Trend Direction</Text>
-          <RadioButton.Group
-            onValueChange={value => setTrendDirection(value)}
-            value={trendDirection}
-          >
-            <View style={styles.radioContainer}>
-              <RadioButton.Item
-                label="Uptrend"
-                value="uptrend"
-                color="#6200ee"
-                labelStyle={styles.radioLabel}
-                style={styles.radioButton}
+          <View style={styles.trendContainer}>
+            <Text style={styles.trendLabel}>Trend Direction</Text>
+            <View style={styles.switchContainer}>
+              <Text style={[styles.trendText, !isUptrend && styles.activeTrend]}>Downtrend</Text>
+              <Switch
+                value={isUptrend}
+                onValueChange={toggleTrend}
+                trackColor={{ false: '#767577', true: '#6200ee' }}
+                thumbColor="#f4f3f4"
               />
-              <RadioButton.Item
-                label="Downtrend"
-                value="downtrend"
-                color="#6200ee"
-                labelStyle={styles.radioLabel}
-                style={styles.radioButton}
-              />
+              <Text style={[styles.trendText, isUptrend && styles.activeTrend]}>Uptrend</Text>
             </View>
-          </RadioButton.Group>
+          </View>
         </View>
         
         <Divider style={styles.divider} />
@@ -111,76 +87,24 @@ export default function FibonacciCalculator() {
         <View style={styles.resultsContainer}>
           <Text style={styles.sectionTitle}>Fibonacci Retracement Levels</Text>
           <View style={styles.levelsContainer}>
-            {retracements.map((level, index) => (
-              <View key={`retracement-${index}`} style={styles.levelRow}>
+            {retracements.map((level) => (
+              <View key={`retracement-${level.level}`} style={styles.levelRow}>
                 <Text style={styles.levelPercent}>{level.level}%</Text>
                 <Text style={styles.levelPrice}>{formatNumber(level.price, 5)}</Text>
               </View>
             ))}
           </View>
+          
+          <Divider style={styles.divider} />
           
           <Text style={styles.sectionTitle}>Fibonacci Extension Levels</Text>
           <View style={styles.levelsContainer}>
-            {extensions.map((level, index) => (
-              <View key={`extension-${index}`} style={styles.levelRow}>
+            {extensions.map((level) => (
+              <View key={`extension-${level.level}`} style={styles.levelRow}>
                 <Text style={styles.levelPercent}>{level.level}%</Text>
                 <Text style={styles.levelPrice}>{formatNumber(level.price, 5)}</Text>
               </View>
             ))}
-          </View>
-          
-          <View style={styles.chartContainer}>
-            <Text style={styles.chartTitle}>Price Levels</Text>
-            <VictoryChart
-              theme={VictoryTheme.material}
-              domainPadding={20}
-              height={300}
-              padding={{ top: 10, bottom: 40, left: 60, right: 40 }}
-              domain={{ x: [0, 2] }}
-            >
-              <VictoryAxis
-                style={{
-                  axis: { stroke: 'transparent' },
-                  tickLabels: { fill: 'transparent' },
-                  grid: { stroke: 'transparent' },
-                }}
-              />
-              <VictoryAxis
-                dependentAxis
-                style={{
-                  axis: { stroke: '#ccc' },
-                  tickLabels: { fill: '#ccc', fontSize: 10 },
-                  grid: { stroke: 'rgba(255,255,255,0.1)' },
-                }}
-              />
-              <VictoryScatter
-                data={getChartData()}
-                size={6}
-                style={{
-                  data: {
-                    fill: ({ datum }) => {
-                      if (datum.level === 0 || datum.level === 100) return '#FFC107';
-                      if (datum.level < 100) return '#4CAF50';
-                      return '#F44336';
-                    }
-                  }
-                }}
-                labels={({ datum }) => `${datum.level}% - ${formatNumber(datum.y, 5)}`}
-                labelComponent={
-                  <VictoryScatter
-                    labelComponent={
-                      <Text style={{ fontSize: 10, color: '#fff' }} />
-                    }
-                  />
-                }
-              />
-              <VictoryLine
-                data={getChartData()}
-                style={{
-                  data: { stroke: 'rgba(255,255,255,0.3)', strokeWidth: 1 },
-                }}
-              />
-            </VictoryChart>
           </View>
         </View>
       </CalculatorCard>
@@ -199,16 +123,26 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#2A2A2A',
   },
-  radioLabel: {
+  trendContainer: {
+    marginBottom: 16,
+  },
+  trendLabel: {
     fontSize: 14,
-    color: '#fff',
+    color: '#aaa',
+    marginBottom: 8,
   },
-  radioContainer: {
+  switchContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  radioButton: {
-    flex: 1,
+  trendText: {
+    marginHorizontal: 8,
+    color: '#aaa',
+  },
+  activeTrend: {
+    color: '#6200ee',
+    fontWeight: 'bold',
   },
   divider: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -221,35 +155,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   levelsContainer: {
     marginBottom: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    padding: 8,
   },
   levelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   levelPercent: {
-    color: '#aaa',
+    color: '#6200ee',
     fontWeight: 'bold',
   },
   levelPrice: {
     color: '#fff',
-  },
-  chartContainer: {
-    marginTop: 16,
-  },
-  chartTitle: {
-    fontSize: 16,
-    color: '#fff',
-    marginBottom: 8,
-    fontWeight: 'bold',
   },
 });

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { TextInput, Text, Divider } from 'react-native-paper';
+import { TextInput, Divider } from 'react-native-paper';
 
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
@@ -22,13 +22,16 @@ export default function PipDifferenceCalculator() {
   }, [currencyPair, priceA, priceB]);
   
   const calculateResults = () => {
-    const priceAValue = parseFloat(priceA) || 0;
-    const priceBValue = parseFloat(priceB) || 0;
+    const priceANum = parseFloat(priceA) || 0;
+    const priceBNum = parseFloat(priceB) || 0;
     
-    if (priceAValue <= 0 || priceBValue <= 0) return;
+    const calculatedPipDifference = calculatePipDifference(
+      priceANum,
+      priceBNum,
+      currencyPair
+    );
     
-    const pips = calculatePipDifference(priceAValue, priceBValue, currencyPair);
-    setPipDifference(pips);
+    setPipDifference(calculatedPipDifference);
   };
   
   return (
@@ -76,12 +79,6 @@ export default function PipDifferenceCalculator() {
             color="#4CAF50"
             isLarge
           />
-          
-          <View style={styles.infoContainer}>
-            <Text style={styles.infoText}>
-              For {currencyPair}, 1 pip = {currencyPair.includes('JPY') ? '0.01' : '0.0001'}
-            </Text>
-          </View>
         </View>
       </CalculatorCard>
     </View>
@@ -105,17 +102,5 @@ const styles = StyleSheet.create({
   },
   resultsContainer: {
     marginTop: 8,
-  },
-  infoContainer: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
-  },
-  infoText: {
-    color: '#2196F3',
-    fontSize: 14,
   },
 });

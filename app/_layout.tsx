@@ -3,10 +3,11 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { darkTheme } from '../utils/theme';
 
 export default function Layout() {
   return (
-    <PaperProvider>
+    <PaperProvider theme={darkTheme}>
       <SafeAreaProvider>
         <StatusBar style="light" />
         <Stack

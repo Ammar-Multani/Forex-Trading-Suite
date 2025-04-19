@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { TextInput, Button, Text, Divider } from 'react-native-paper';
+import { TextInput, Divider, Text } from 'react-native-paper';
 import { VictoryChart, VictoryLine, VictoryAxis, VictoryTheme } from 'victory-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 

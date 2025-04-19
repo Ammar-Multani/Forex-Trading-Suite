@@ -33,7 +33,7 @@ export default function ResultDisplay({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   label: {
     fontSize: 14,

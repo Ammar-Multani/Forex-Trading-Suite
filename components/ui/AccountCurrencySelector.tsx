@@ -3,52 +3,39 @@ import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import DropDownPicker from 'react-native-dropdown-picker';
 
-// Common account currencies
-const ACCOUNT_CURRENCIES = [
-  { label: 'USD ($)', value: 'USD' },
-  { label: 'EUR (€)', value: 'EUR' },
-  { label: 'GBP (£)', value: 'GBP' },
-  { label: 'JPY (¥)', value: 'JPY' },
-  { label: 'CHF (Fr)', value: 'CHF' },
-  { label: 'AUD (A$)', value: 'AUD' },
-  { label: 'CAD (C$)', value: 'CAD' },
-  { label: 'NZD (NZ$)', value: 'NZD' },
-];
-
 interface AccountCurrencySelectorProps {
   value: string;
   onChange: (value: string) => void;
-  label?: string;
 }
 
-export default function AccountCurrencySelector({ 
-  value, 
-  onChange,
-  label = 'Account Currency'
-}: AccountCurrencySelectorProps) {
+export default function AccountCurrencySelector({ value, onChange }: AccountCurrencySelectorProps) {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState(ACCOUNT_CURRENCIES);
+  const [items, setItems] = useState([
+    { label: 'US Dollar (USD)', value: 'USD' },
+    { label: 'Euro (EUR)', value: 'EUR' },
+    { label: 'British Pound (GBP)', value: 'GBP' },
+    { label: 'Japanese Yen (JPY)', value: 'JPY' },
+    { label: 'Swiss Franc (CHF)', value: 'CHF' },
+    { label: 'Australian Dollar (AUD)', value: 'AUD' },
+    { label: 'Canadian Dollar (CAD)', value: 'CAD' },
+    { label: 'New Zealand Dollar (NZD)', value: 'NZD' },
+  ]);
 
   return (
     <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      <Text style={styles.label}>Account Currency</Text>
       <DropDownPicker
         open={open}
         value={value}
         items={items}
         setOpen={setOpen}
-        setValue={(callback) => {
-          const newValue = callback(value);
-          if (typeof newValue === 'string') {
-            onChange(newValue);
-          }
-        }}
+        setValue={onChange}
         setItems={setItems}
-        placeholder="Select account currency"
         style={styles.dropdown}
         textStyle={styles.dropdownText}
-        dropDownContainerStyle={styles.dropdownContainer}
+        dropDownContainerStyle={styles.dropdownList}
         listMode="SCROLLVIEW"
+        zIndex={3000}
       />
     </View>
   );
@@ -57,7 +44,7 @@ export default function AccountCurrencySelector({
 const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
-    zIndex: 1000,
+    zIndex: 3000,
   },
   label: {
     fontSize: 14,
@@ -72,7 +59,7 @@ const styles = StyleSheet.create({
   dropdownText: {
     color: '#fff',
   },
-  dropdownContainer: {
+  dropdownList: {
     backgroundColor: '#2A2A2A',
     borderColor: '#444',
   },
