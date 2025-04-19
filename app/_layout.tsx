@@ -37,6 +37,48 @@ export default function Layout() {
               headerBackTitle: 'Back',
             })}
           />
+          <Stack.Screen
+            name="settings"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="appearance"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="terms"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="disclaimer"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="privacy"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="manual"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="report-bug"
+            options={{
+              headerShown: false,
+            }}
+          />
         </Stack>
       </SafeAreaProvider>
     </PaperProvider>

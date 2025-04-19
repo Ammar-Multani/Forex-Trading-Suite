@@ -80,12 +80,21 @@ export default function Home() {
     router.push(`/calculators/${id}`);
   };
 
+  const navigateToSettings = () => {
+    router.push('/settings');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
-        <Text style={styles.title}>Forex Calculator Suite</Text>
-        <Text style={styles.subtitle}>Professional trading tools</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.title}>Forex Calculator Suite</Text>
+          <Text style={styles.subtitle}>Professional trading tools</Text>
+        </View>
+        <TouchableOpacity onPress={navigateToSettings} style={styles.settingsButton}>
+          <Ionicons name="settings-outline" size={24} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView 
@@ -131,6 +140,15 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerContent: {
+    flex: 1,
+  },
+  settingsButton: {
+    padding: 4,
   },
   title: {
     fontSize: 28,
