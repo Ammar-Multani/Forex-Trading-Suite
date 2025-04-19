@@ -1,255 +1,292 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { TextInput, Button, Text, Divider, RadioButton } from 'react-native-paper';
-import { VictoryChart, VictoryLine, VictoryAxis, VictoryTheme, VictoryScatter } from 'victory-native';
-
+import { TextInput, Button, Text, SegmentedButtons } from 'react-native-paper';
+import { Svg, Rect, Line, Text as SvgText } from 'react-native-svg';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
-import { calculateFibonacciLevels, formatNumber } from '../../utils/calculators';
+import { calculateFibonacciLevels } from '../../utils/calculators';
+import { theme } from '../../utils/theme';
 
 export default function FibonacciCalculator() {
-  // State for inputs
   const [highPrice, setHighPrice] = useState('1.2000');
   const [lowPrice, setLowPrice] = useState('1.1800');
   const [trendDirection, setTrendDirection] = useState('uptrend');
   
-  // State for results
-  const [retracements, setRetracements] = useState<Array<{ level: number; price: number }>>([]);
-  const [extensions, setExtensions] = useState<Array<{ level: number; price: number }>>([]);
-  
-  // Calculate results when inputs change
+  const [results, setResults] = useState({
+    retracement: [] as { level: number; price: number }[],
+    extension: [] as { level: number; price: number }[],
+  });
+
   useEffect(() => {
     calculateResults();
   }, [highPrice, lowPrice, trendDirection]);
-  
+
   const calculateResults = () => {
     const high = parseFloat(highPrice) || 0;
     const low = parseFloat(lowPrice) || 0;
     const isUptrend = trendDirection === 'uptrend';
     
-    if (high <= 0 || low <= 0 || high === low) return;
+    if (high <= 0 || low <= 0 || high <= low) return;
     
-    const { retracements: retracementLevels, extensions: extensionLevels } = calculateFibonacciLevels(
-      high,
-      low,
-      isUptrend
-    );
-    
-    setRetracements(retracementLevels);
-    setExtensions(extensionLevels);
+    const result = calculateFibonacciLevels(high, low, isUptrend);
+    setResults(result);
   };
-  
+
+  // Format price values
+  const formatPrice = (value: number) => {
+    return value.toFixed(5);
+  };
+
   // Prepare chart data
-  const getChartData = () => {
-    const allLevels = [...retracements, ...extensions];
-    if (allLevels.length === 0) return [];
-    
-    // Sort by price
-    return allLevels.sort((a, b) => a.price - b.price).map(level => ({
-      x: 1,
-      y: level.price,
-      level: level.level
-    }));
-  };
+  const allLevels = [...results.retracement, ...results.extension];
+  const maxPrice = Math.max(...allLevels.map(l => l.price));
+  const minPrice = Math.min(...allLevels.map(l => l.price));
+  const range = maxPrice - minPrice;
   
+  const chartHeight = 300;
+  const chartWidth = 300;
+  const paddingX = 100;
+  const paddingY = 20;
+  const availableHeight = chartHeight - paddingY * 2;
+
+  // Scale values for the chart
+  const scaleY = (price: number) => {
+    if (range === 0) return paddingY;
+    return chartHeight - paddingY - ((price - minPrice) / range) * availableHeight;
+  };
+
+  // Colors for different Fibonacci levels
+  const getLevelColor = (level: number) => {
+    if (level === 0) return theme.colors.success;
+    if (level === 100) return theme.colors.error;
+    if (level < 100) return theme.colors.info;
+    return theme.colors.warning;
+  };
+
   return (
-    <View style={styles.container}>
-      <CalculatorCard title="Fibonacci Calculator">
-        <View style={styles.inputsContainer}>
-          <TextInput
-            label="High Price"
-            value={highPrice}
-            onChangeText={setHighPrice}
-            keyboardType="numeric"
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
+    <ScrollView style={styles.container}>
+      <CalculatorCard 
+        title="Fibonacci Calculator" 
+        gradientColors={['#0093E9', '#80D0C7']}
+      >
+        <TextInput
+          label="High Price"
+          value={highPrice}
+          onChangeText={setHighPrice}
+          keyboardType="numeric"
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
+        
+        <TextInput
+          label="Low Price"
+          value={lowPrice}
+          onChangeText={setLowPrice}
+          keyboardType="numeric"
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
+        
+        <Text style={styles.label}>Trend Direction</Text>
+        <SegmentedButtons
+          value={trendDirection}
+          onValueChange={setTrendDirection}
+          buttons={[
+            { value: 'uptrend', label: 'Uptrend' },
+            { value: 'downtrend', label: 'Downtrend' },
+          ]}
+          style={styles.segmentedButtons}
+        />
+        
+        <View style={styles.chartContainer}>
+          <Text style={styles.chartTitle}>Fibonacci Levels</Text>
           
-          <TextInput
-            label="Low Price"
-            value={lowPrice}
-            onChangeText={setLowPrice}
-            keyboardType="numeric"
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
-          <Text style={styles.radioLabel}>Trend Direction</Text>
-          <RadioButton.Group
-            onValueChange={value => setTrendDirection(value)}
-            value={trendDirection}
-          >
-            <View style={styles.radioContainer}>
-              <RadioButton.Item
-                label="Uptrend"
-                value="uptrend"
-                color="#6200ee"
-                labelStyle={styles.radioLabel}
-                style={styles.radioButton}
-              />
-              <RadioButton.Item
-                label="Downtrend"
-                value="downtrend"
-                color="#6200ee"
-                labelStyle={styles.radioLabel}
-                style={styles.radioButton}
-              />
-            </View>
-          </RadioButton.Group>
+          <Svg height={chartHeight} width={chartWidth}>
+            {/* Price axis */}
+            <Line
+              x1={paddingX}
+              y1={paddingY}
+              x2={paddingX}
+              y2={chartHeight - paddingY}
+              stroke={theme.colors.border}
+              strokeWidth="1"
+            />
+            
+            {/* Retracement levels */}
+            {results.retracement.map((level, index) => {
+              const y = scaleY(level.price);
+              const color = getLevelColor(level.level);
+              
+              return (
+                <React.Fragment key={`retracement-${index}`}>
+                  <Line
+                    x1={paddingX - 5}
+                    y1={y}
+                    x2={chartWidth - paddingX}
+                    y2={y}
+                    stroke={color}
+                    strokeWidth="1"
+                    strokeDasharray={level.level === 0 || level.level === 100 ? "none" : "5,5"}
+                  />
+                  <SvgText
+                    x={paddingX - 10}
+                    y={y + 4}
+                    fontSize="12"
+                    fill={color}
+                    textAnchor="end"
+                  >
+                    {level.level}%
+                  </SvgText>
+                  <SvgText
+                    x={chartWidth - paddingX + 10}
+                    y={y + 4}
+                    fontSize="12"
+                    fill={color}
+                    textAnchor="start"
+                  >
+                    {formatPrice(level.price)}
+                  </SvgText>
+                </React.Fragment>
+              );
+            })}
+            
+            {/* Extension levels */}
+            {results.extension.map((level, index) => {
+              const y = scaleY(level.price);
+              const color = getLevelColor(level.level);
+              
+              return (
+                <React.Fragment key={`extension-${index}`}>
+                  <Line
+                    x1={paddingX - 5}
+                    y1={y}
+                    x2={chartWidth - paddingX}
+                    y2={y}
+                    stroke={color}
+                    strokeWidth="1"
+                    strokeDasharray="5,5"
+                  />
+                  <SvgText
+                    x={paddingX - 10}
+                    y={y + 4}
+                    fontSize="12"
+                    fill={color}
+                    textAnchor="end"
+                  >
+                    {level.level}%
+                  </SvgText>
+                  <SvgText
+                    x={chartWidth - paddingX + 10}
+                    y={y + 4}
+                    fontSize="12"
+                    fill={color}
+                    textAnchor="start"
+                  >
+                    {formatPrice(level.price)}
+                  </SvgText>
+                </React.Fragment>
+              );
+            })}
+          </Svg>
         </View>
         
-        <Divider style={styles.divider} />
-        
         <View style={styles.resultsContainer}>
-          <Text style={styles.sectionTitle}>Fibonacci Retracement Levels</Text>
-          <View style={styles.levelsContainer}>
-            {retracements.map((level, index) => (
-              <View key={`retracement-${index}`} style={styles.levelRow}>
-                <Text style={styles.levelPercent}>{level.level}%</Text>
-                <Text style={styles.levelPrice}>{formatNumber(level.price, 5)}</Text>
+          <View style={styles.resultSection}>
+            <Text style={styles.resultSectionTitle}>Retracement Levels</Text>
+            {results.retracement.map((level, index) => (
+              <View key={`retracement-result-${index}`} style={styles.resultRow}>
+                <Text style={[styles.resultLevel, { color: getLevelColor(level.level) }]}>
+                  {level.level}%
+                </Text>
+                <Text style={styles.resultPrice}>{formatPrice(level.price)}</Text>
               </View>
             ))}
           </View>
           
-          <Text style={styles.sectionTitle}>Fibonacci Extension Levels</Text>
-          <View style={styles.levelsContainer}>
-            {extensions.map((level, index) => (
-              <View key={`extension-${index}`} style={styles.levelRow}>
-                <Text style={styles.levelPercent}>{level.level}%</Text>
-                <Text style={styles.levelPrice}>{formatNumber(level.price, 5)}</Text>
+          <View style={styles.resultSection}>
+            <Text style={styles.resultSectionTitle}>Extension Levels</Text>
+            {results.extension.map((level, index) => (
+              <View key={`extension-result-${index}`} style={styles.resultRow}>
+                <Text style={[styles.resultLevel, { color: getLevelColor(level.level) }]}>
+                  {level.level}%
+                </Text>
+                <Text style={styles.resultPrice}>{formatPrice(level.price)}</Text>
               </View>
             ))}
-          </View>
-          
-          <View style={styles.chartContainer}>
-            <Text style={styles.chartTitle}>Price Levels</Text>
-            <VictoryChart
-              theme={VictoryTheme.material}
-              domainPadding={20}
-              height={300}
-              padding={{ top: 10, bottom: 40, left: 60, right: 40 }}
-              domain={{ x: [0, 2] }}
-            >
-              <VictoryAxis
-                style={{
-                  axis: { stroke: 'transparent' },
-                  tickLabels: { fill: 'transparent' },
-                  grid: { stroke: 'transparent' },
-                }}
-              />
-              <VictoryAxis
-                dependentAxis
-                style={{
-                  axis: { stroke: '#ccc' },
-                  tickLabels: { fill: '#ccc', fontSize: 10 },
-                  grid: { stroke: 'rgba(255,255,255,0.1)' },
-                }}
-              />
-              <VictoryScatter
-                data={getChartData()}
-                size={6}
-                style={{
-                  data: {
-                    fill: ({ datum }) => {
-                      if (datum.level === 0 || datum.level === 100) return '#FFC107';
-                      if (datum.level < 100) return '#4CAF50';
-                      return '#F44336';
-                    }
-                  }
-                }}
-                labels={({ datum }) => `${datum.level}% - ${formatNumber(datum.y, 5)}`}
-                labelComponent={
-                  <VictoryScatter
-                    labelComponent={
-                      <Text style={{ fontSize: 10, color: '#fff' }} />
-                    }
-                  />
-                }
-              />
-              <VictoryLine
-                data={getChartData()}
-                style={{
-                  data: { stroke: 'rgba(255,255,255,0.3)', strokeWidth: 1 },
-                }}
-              />
-            </VictoryChart>
           </View>
         </View>
       </CalculatorCard>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  inputsContainer: {
-    marginBottom: 16,
+    backgroundColor: theme.colors.background,
   },
   input: {
-    marginBottom: 16,
-    backgroundColor: '#2A2A2A',
+    marginBottom: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
   },
-  radioLabel: {
-    fontSize: 14,
-    color: '#fff',
+  label: {
+    fontSize: theme.typography.fontSizes.sm,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
   },
-  radioContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  radioButton: {
-    flex: 1,
-  },
-  divider: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginVertical: 16,
-  },
-  resultsContainer: {
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  levelsContainer: {
-    marginBottom: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    padding: 8,
-  },
-  levelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  levelPercent: {
-    color: '#aaa',
-    fontWeight: 'bold',
-  },
-  levelPrice: {
-    color: '#fff',
+  segmentedButtons: {
+    marginBottom: theme.spacing.md,
   },
   chartContainer: {
-    marginTop: 16,
+    marginTop: theme.spacing.md,
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: theme.borderRadius.md,
   },
   chartTitle: {
-    fontSize: 16,
-    color: '#fff',
-    marginBottom: 8,
-    fontWeight: 'bold',
+    fontSize: theme.typography.fontSizes.lg,
+    fontWeight: theme.typography.fontWeights.bold as any,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.md,
+    alignSelf: 'flex-start',
+  },
+  resultsContainer: {
+    marginTop: theme.spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  resultSection: {
+    flex: 1,
+    padding: theme.spacing.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: theme.borderRadius.md,
+    marginHorizontal: theme.spacing.xs,
+  },
+  resultSectionTitle: {
+    fontSize: theme.typography.fontSizes.md,
+    fontWeight: theme.typography.fontWeights.bold as any,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+  },
+  resultRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.xs,
+  },
+  resultLevel: {
+    fontSize: theme.typography.fontSizes.sm,
+    fontWeight: theme.typography.fontWeights.medium as any,
+  },
+  resultPrice: {
+    fontSize: theme.typography.fontSizes.sm,
+    color: theme.colors.text,
   },
 });

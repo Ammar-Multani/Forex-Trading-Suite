@@ -1,43 +1,37 @@
-import 'react-native-gesture-handler';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { PaperProvider } from 'react-native-paper';
+import { StyleSheet, View } from 'react-native';
 import { useFonts } from 'expo-font';
-import * as SplashScreen from 'expo-splash-screen';
-
-// Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
+import { SplashScreen } from 'expo-router';
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
+  // Load any resources or data needed for the app
+  const [fontsLoaded, fontError] = useFonts({
     'SpaceMono-Regular': require('./assets/fonts/SpaceMono-Regular.ttf'),
   });
 
+  // Prevent the splash screen from auto-hiding before asset loading is complete
   useEffect(() => {
-    if (fontsLoaded) {
-      // Hide splash screen once fonts are loaded
+    if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded) {
+  // If the fonts haven't loaded and there's no error, return null
+  if (!fontsLoaded && !fontError) {
     return null;
   }
 
+  // Expo Router uses the root component as a wrapper for all screens
   return (
-    <PaperProvider>
-      <SafeAreaProvider>
-        <StatusBar style="light" />
-      </SafeAreaProvider>
-    </PaperProvider>
+    <>
+      <StatusBar style="light" />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
   },
 });

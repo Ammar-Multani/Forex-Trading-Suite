@@ -1,141 +1,196 @@
-// Utility functions for forex calculations
+// Currency pairs with their pip values and decimal places
+export const currencyPairs = [
+  { label: 'EUR/USD', value: 'EUR/USD', pipDecimalPlace: 4, pipValue: 0.0001 },
+  { label: 'GBP/USD', value: 'GBP/USD', pipDecimalPlace: 4, pipValue: 0.0001 },
+  { label: 'USD/JPY', value: 'USD/JPY', pipDecimalPlace: 2, pipValue: 0.01 },
+  { label: 'USD/CHF', value: 'USD/CHF', pipDecimalPlace: 4, pipValue: 0.0001 },
+  { label: 'USD/CAD', value: 'USD/CAD', pipDecimalPlace: 4, pipValue: 0.0001 },
+  { label: 'AUD/USD', value: 'AUD/USD', pipDecimalPlace: 4, pipValue: 0.0001 },
+  { label: 'NZD/USD', value: 'NZD/USD', pipDecimalPlace: 4, pipValue: 0.0001 },
+  { label: 'EUR/GBP', value: 'EUR/GBP', pipDecimalPlace: 4, pipValue: 0.0001 },
+  { label: 'EUR/JPY', value: 'EUR/JPY', pipDecimalPlace: 2, pipValue: 0.01 },
+  { label: 'GBP/JPY', value: 'GBP/JPY', pipDecimalPlace: 2, pipValue: 0.01 },
+];
 
-// Format number with commas and decimal places
-export function formatNumber(num: number, decimals = 2): string {
-  return num.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+// Account currencies
+export const accountCurrencies = [
+  { label: 'USD', value: 'USD', symbol: '$' },
+  { label: 'EUR', value: 'EUR', symbol: '€' },
+  { label: 'GBP', value: 'GBP', symbol: '£' },
+  { label: 'JPY', value: 'JPY', symbol: '¥' },
+  { label: 'AUD', value: 'AUD', symbol: 'A$' },
+  { label: 'CAD', value: 'CAD', symbol: 'C$' },
+  { label: 'CHF', value: 'CHF', symbol: 'Fr' },
+  { label: 'NZD', value: 'NZD', symbol: 'NZ$' },
+];
+
+// Get pip value for a currency pair
+export function getPipValue(currencyPair: string): number {
+  const pair = currencyPairs.find(p => p.value === currencyPair);
+  return pair ? pair.pipValue : 0.0001;
 }
 
-// Format currency with symbol
-export function formatCurrency(amount: number, currency = 'USD', decimals = 2): string {
-  const symbols: Record<string, string> = {
-    USD: '$',
-    EUR: '€',
-    GBP: '£',
-    JPY: '¥',
-    CHF: 'Fr',
-    AUD: 'A$',
-    CAD: 'C$',
-    NZD: 'NZ$',
-  };
-
-  const symbol = symbols[currency] || currency;
-  
-  // Special case for JPY which typically doesn't use decimal places
-  const actualDecimals = currency === 'JPY' ? 0 : decimals;
-  
-  return `${symbol}${formatNumber(amount, actualDecimals)}`;
+// Get pip decimal place for a currency pair
+export function getPipDecimalPlace(currencyPair: string): number {
+  const pair = currencyPairs.find(p => p.value === currencyPair);
+  return pair ? pair.pipDecimalPlace : 4;
 }
 
-// Calculate compound interest
-export function calculateCompoundInterest(
-  principal: number,
-  rate: number,
-  frequency: number,
-  years: number
-): { endBalance: number; totalEarnings: number; growthData: Array<{ x: number; y: number }> } {
-  const periods = frequency * years;
-  const ratePerPeriod = rate / 100 / frequency;
+// Get currency symbol
+export function getCurrencySymbol(currency: string): string {
+  const curr = accountCurrencies.find(c => c.value === currency);
+  return curr ? curr.symbol : '$';
+}
+
+// Calculate pip difference between two prices
+export function calculatePipDifference(
+  price1: number,
+  price2: number,
+  currencyPair: string
+): number {
+  const pipValue = getPipValue(currencyPair);
+  const difference = Math.abs(price1 - price2);
+  return difference / pipValue;
+}
+
+// Calculate pip value in account currency
+export function calculatePipValue(
+  accountCurrency: string,
+  currencyPair: string,
+  lotSize: number,
+  exchangeRate: number = 1
+): number {
+  const standardLotSize = 100000; // Standard lot size in forex
+  const pipValue = getPipValue(currencyPair);
   
-  let balance = principal;
-  const growthData = [{ x: 0, y: principal }];
+  // Base calculation for pip value
+  let pipValueInAccountCurrency = (pipValue * standardLotSize * lotSize);
   
-  for (let i = 1; i <= periods; i++) {
-    balance = balance * (1 + ratePerPeriod);
-    
-    // Add data point for each year
-    if (i % frequency === 0) {
-      growthData.push({
-        x: i / frequency,
-        y: balance,
-      });
-    }
+  // Apply exchange rate if needed
+  if (currencyPair.startsWith(accountCurrency) || 
+      (currencyPair.endsWith(accountCurrency) && !currencyPair.startsWith('USD'))) {
+    // No conversion needed
+    return pipValueInAccountCurrency;
+  } else if (currencyPair.endsWith(accountCurrency)) {
+    // Convert using the exchange rate
+    return pipValueInAccountCurrency / exchangeRate;
+  } else {
+    // Need to convert using the exchange rate
+    return pipValueInAccountCurrency * exchangeRate;
   }
-  
-  const endBalance = balance;
-  const totalEarnings = endBalance - principal;
-  
-  return { endBalance, totalEarnings, growthData };
 }
 
-// Calculate Fibonacci levels
+// Calculate position size based on risk parameters
+export function calculatePositionSize(
+  accountBalance: number,
+  riskPercentage: number,
+  entryPrice: number,
+  stopLossPrice: number,
+  currencyPair: string,
+  exchangeRate: number = 1
+): number {
+  const riskAmount = accountBalance * (riskPercentage / 100);
+  const pipValue = getPipValue(currencyPair);
+  const pipDifference = Math.abs(entryPrice - stopLossPrice) / pipValue;
+  
+  if (pipDifference === 0) return 0;
+  
+  const standardLotSize = 100000; // Standard lot size in forex
+  const pipValuePerLot = pipValue * standardLotSize * exchangeRate;
+  
+  const positionSizeInLots = riskAmount / (pipDifference * pipValuePerLot);
+  return positionSizeInLots;
+}
+
+// Calculate margin requirement
+export function calculateMargin(
+  currencyPair: string,
+  positionSize: number,
+  leverage: number,
+  price: number = 1
+): number {
+  const standardLotSize = 100000; // Standard lot size in forex
+  const notionalValue = positionSize * standardLotSize * price;
+  return notionalValue / leverage;
+}
+
+// Calculate profit/loss
+export function calculateProfitLoss(
+  entryPrice: number,
+  exitPrice: number,
+  positionSize: number,
+  currencyPair: string,
+  isLong: boolean = true,
+  exchangeRate: number = 1
+): { pips: number; amount: number; percentage: number } {
+  const pipValue = getPipValue(currencyPair);
+  const standardLotSize = 100000; // Standard lot size in forex
+  
+  // Calculate pip difference
+  const priceDifference = exitPrice - entryPrice;
+  const pipDifference = priceDifference / pipValue;
+  
+  // Adjust for long/short position
+  const adjustedPipDifference = isLong ? pipDifference : -pipDifference;
+  
+  // Calculate profit/loss amount
+  const plAmount = adjustedPipDifference * pipValue * standardLotSize * positionSize * exchangeRate;
+  
+  // Calculate percentage return
+  const investmentValue = positionSize * standardLotSize * entryPrice / leverage;
+  const percentage = (plAmount / investmentValue) * 100;
+  
+  return {
+    pips: adjustedPipDifference,
+    amount: plAmount,
+    percentage: percentage,
+  };
+}
+
+// Calculate Fibonacci retracement levels
 export function calculateFibonacciLevels(
   highPrice: number,
   lowPrice: number,
-  isUptrend: boolean
+  isUptrend: boolean = true
 ): {
-  retracements: Array<{ level: number; price: number }>;
-  extensions: Array<{ level: number; price: number }>;
+  retracement: { level: number; price: number }[];
+  extension: { level: number; price: number }[];
 } {
-  const diff = isUptrend ? highPrice - lowPrice : lowPrice - highPrice;
-  const basePrice = isUptrend ? highPrice : lowPrice;
+  const priceDifference = highPrice - lowPrice;
   
-  // Fibonacci retracement levels
+  // Retracement levels
   const retracementLevels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
-  const retracements = retracementLevels.map(level => ({
-    level: level * 100,
-    price: isUptrend 
-      ? basePrice - (diff * level)
-      : basePrice + (diff * level),
-  }));
-  
-  // Fibonacci extension levels
+  // Extension levels
   const extensionLevels = [1.272, 1.618, 2.618];
-  const extensions = extensionLevels.map(level => ({
-    level: level * 100,
-    price: isUptrend
-      ? basePrice + (diff * (level - 1))
-      : basePrice - (diff * (level - 1)),
-  }));
   
-  return { retracements, extensions };
-}
-
-// Calculate pip difference
-export function calculatePipDifference(
-  priceA: number,
-  priceB: number,
-  currencyPair: string
-): number {
-  // Determine pip decimal place based on currency pair
-  const pipDecimal = currencyPair.includes('JPY') ? 2 : 4;
-  const pipFactor = Math.pow(10, pipDecimal);
+  let retracement: { level: number; price: number }[] = [];
+  let extension: { level: number; price: number }[] = [];
   
-  // Calculate pip difference
-  return Math.abs((priceA - priceB) * pipFactor);
-}
-
-// Calculate pip value
-export function calculatePipValue(
-  currencyPair: string,
-  accountCurrency: string,
-  lotSize: number
-): number {
-  // Standard lot size is 100,000 units
-  const standardLot = 100000;
-  const actualSize = lotSize * standardLot;
-  
-  // Extract base and quote currencies
-  const [baseCurrency, quoteCurrency] = currencyPair.split('/');
-  
-  // Determine pip decimal place based on currency pair
-  const pipDecimal = currencyPair.includes('JPY') ? 2 : 4;
-  const pipSize = Math.pow(10, -pipDecimal);
-  
-  // Calculate pip value in quote currency
-  let pipValue = actualSize * pipSize;
-  
-  // Convert to account currency if needed
-  if (quoteCurrency !== accountCurrency) {
-    // This is a simplified conversion - in a real app, you would use current exchange rates
-    // For now, we'll use a placeholder conversion rate of 1
-    const conversionRate = 1;
-    pipValue = pipValue * conversionRate;
+  if (isUptrend) {
+    // Uptrend: High to Low
+    retracement = retracementLevels.map(level => ({
+      level: level * 100,
+      price: highPrice - (priceDifference * level),
+    }));
+    
+    extension = extensionLevels.map(level => ({
+      level: level * 100,
+      price: highPrice + (priceDifference * (level - 1)),
+    }));
+  } else {
+    // Downtrend: Low to High
+    retracement = retracementLevels.map(level => ({
+      level: level * 100,
+      price: lowPrice + (priceDifference * level),
+    }));
+    
+    extension = extensionLevels.map(level => ({
+      level: level * 100,
+      price: lowPrice - (priceDifference * (level - 1)),
+    }));
   }
   
-  return pipValue;
+  return { retracement, extension };
 }
 
 // Calculate pivot points
@@ -150,192 +205,136 @@ export function calculatePivotPoints(
   support: number[];
 } {
   let pivot = 0;
-  let resistance = [0, 0, 0];
-  let support = [0, 0, 0];
+  let resistance: number[] = [];
+  let support: number[] = [];
   
   switch (method) {
     case 'standard':
       pivot = (high + low + close) / 3;
-      resistance[0] = 2 * pivot - low;
-      resistance[1] = pivot + (high - low);
-      resistance[2] = pivot + 2 * (high - low);
-      support[0] = 2 * pivot - high;
-      support[1] = pivot - (high - low);
-      support[2] = pivot - 2 * (high - low);
+      resistance = [
+        2 * pivot - low, // R1
+        pivot + (high - low), // R2
+        pivot + 2 * (high - low), // R3
+      ];
+      support = [
+        2 * pivot - high, // S1
+        pivot - (high - low), // S2
+        pivot - 2 * (high - low), // S3
+      ];
       break;
       
     case 'woodie':
       pivot = (high + low + 2 * close) / 4;
-      resistance[0] = 2 * pivot - low;
-      resistance[1] = pivot + (high - low);
-      resistance[2] = pivot + 2 * (high - low);
-      support[0] = 2 * pivot - high;
-      support[1] = pivot - (high - low);
-      support[2] = pivot - 2 * (high - low);
+      resistance = [
+        2 * pivot - low, // R1
+        pivot + (high - low), // R2
+      ];
+      support = [
+        2 * pivot - high, // S1
+        pivot - (high - low), // S2
+      ];
       break;
       
     case 'camarilla':
-      resistance[0] = close + (high - low) * 1.1 / 12;
-      resistance[1] = close + (high - low) * 1.1 / 6;
-      resistance[2] = close + (high - low) * 1.1 / 4;
-      pivot = (high + low + close) / 3;
-      support[0] = close - (high - low) * 1.1 / 12;
-      support[1] = close - (high - low) * 1.1 / 6;
-      support[2] = close - (high - low) * 1.1 / 4;
+      resistance = [
+        close + (high - low) * 1.1 / 12, // R1
+        close + (high - low) * 1.1 / 6, // R2
+        close + (high - low) * 1.1 / 4, // R3
+        close + (high - low) * 1.1 / 2, // R4
+      ];
+      support = [
+        close - (high - low) * 1.1 / 12, // S1
+        close - (high - low) * 1.1 / 6, // S2
+        close - (high - low) * 1.1 / 4, // S3
+        close - (high - low) * 1.1 / 2, // S4
+      ];
+      pivot = (resistance[0] + support[0]) / 2;
       break;
       
     case 'demark':
       const x = close > open ? high + 2 * low + close : 2 * high + low + close;
       pivot = x / 4;
-      resistance[0] = x / 2 - low;
-      support[0] = x / 2 - high;
-      // Demark only has one level of support/resistance
-      resistance[1] = resistance[0];
-      resistance[2] = resistance[0];
-      support[1] = support[0];
-      support[2] = support[0];
+      resistance = [
+        x / 2 - low, // R1
+      ];
+      support = [
+        x / 2 - high, // S1
+      ];
       break;
   }
   
   return { pivot, resistance, support };
 }
 
-// Calculate position size
-export function calculatePositionSize(
-  accountBalance: number,
-  riskPercentage: number,
-  entryPrice: number,
-  stopLossPips: number,
-  currencyPair: string,
-  accountCurrency: string
+// Calculate compound interest
+export function calculateCompoundInterest(
+  principal: number,
+  rate: number,
+  years: number,
+  frequency: 'monthly' | 'quarterly' | 'semi-annually' | 'annually' = 'annually'
 ): {
-  positionSize: number;
-  riskAmount: number;
-  pipValue: number;
+  endingBalance: number;
+  totalEarnings: number;
+  growthData: { year: number; balance: number }[];
 } {
-  // Calculate risk amount
-  const riskAmount = accountBalance * (riskPercentage / 100);
+  let periodsPerYear = 1;
   
-  // Calculate pip value
-  const pipValue = calculatePipValue(currencyPair, accountCurrency, 1);
+  switch (frequency) {
+    case 'monthly':
+      periodsPerYear = 12;
+      break;
+    case 'quarterly':
+      periodsPerYear = 4;
+      break;
+    case 'semi-annually':
+      periodsPerYear = 2;
+      break;
+    case 'annually':
+      periodsPerYear = 1;
+      break;
+  }
   
-  // Calculate position size in lots
-  const positionSize = riskAmount / (stopLossPips * pipValue);
+  const totalPeriods = years * periodsPerYear;
+  const ratePerPeriod = rate / 100 / periodsPerYear;
   
-  return {
-    positionSize: Math.min(positionSize, 100), // Cap at 100 lots for safety
-    riskAmount,
-    pipValue,
-  };
+  let balance = principal;
+  const growthData: { year: number; balance: number }[] = [{ year: 0, balance }];
+  
+  for (let period = 1; period <= totalPeriods; period++) {
+    balance = balance * (1 + ratePerPeriod);
+    
+    // Record balance at the end of each year
+    if (period % periodsPerYear === 0) {
+      const year = period / periodsPerYear;
+      growthData.push({ year, balance });
+    }
+  }
+  
+  const endingBalance = balance;
+  const totalEarnings = endingBalance - principal;
+  
+  return { endingBalance, totalEarnings, growthData };
 }
 
-// Calculate profit/loss
-export function calculateProfitLoss(
-  entryPrice: number,
-  exitPrice: number,
-  positionSize: number,
-  currencyPair: string,
-  accountCurrency: string,
-  isLong: boolean = true
-): {
-  pips: number;
-  profitLoss: number;
-  roi: number;
-} {
-  // Calculate pip difference
-  const pipDiff = calculatePipDifference(entryPrice, exitPrice, currencyPair);
-  
-  // Calculate pip value
-  const pipValue = calculatePipValue(currencyPair, accountCurrency, positionSize);
-  
-  // Calculate profit/loss
-  const direction = isLong ? (exitPrice > entryPrice ? 1 : -1) : (exitPrice < entryPrice ? 1 : -1);
-  const profitLoss = direction * pipDiff * pipValue;
-  
-  // Calculate ROI (Return on Investment)
-  const investment = positionSize * 100000 * entryPrice;
-  const roi = (profitLoss / investment) * 100;
-  
-  return {
-    pips: direction * pipDiff,
-    profitLoss,
-    roi,
-  };
-}
+// Standard lot sizes
+export const lotSizes = [
+  { label: 'Standard (1.0)', value: 1.0 },
+  { label: 'Mini (0.1)', value: 0.1 },
+  { label: 'Micro (0.01)', value: 0.01 },
+  { label: 'Nano (0.001)', value: 0.001 },
+];
 
-// Calculate margin
-export function calculateMargin(
-  currencyPair: string,
-  accountCurrency: string,
-  positionSize: number,
-  leverage: number
-): {
-  requiredMargin: number;
-  marginLevel: number;
-} {
-  // Extract base and quote currencies
-  const [baseCurrency, quoteCurrency] = currencyPair.split('/');
-  
-  // Standard lot size is 100,000 units
-  const standardLot = 100000;
-  const actualSize = positionSize * standardLot;
-  
-  // For simplicity, we'll use a placeholder exchange rate of 1
-  // In a real app, you would use current exchange rates
-  const exchangeRate = 1;
-  
-  // Calculate position value in account currency
-  const positionValue = actualSize * exchangeRate;
-  
-  // Calculate required margin
-  const requiredMargin = positionValue / leverage;
-  
-  // Calculate margin level (assuming no other positions)
-  const marginLevel = 100; // 100% if this is the only position
-  
-  return {
-    requiredMargin,
-    marginLevel,
-  };
-}
+// Default leverage options
+export const leverageOptions = [
+  { label: '1:1', value: 1 },
+  { label: '1:10', value: 10 },
+  { label: '1:20', value: 20 },
+  { label: '1:50', value: 50 },
+  { label: '1:100', value: 100 },
+  { label: '1:200', value: 200 },
+  { label: '1:500', value: 500 },
+  { label: '1:1000', value: 1000 },
+];
 
-// Calculate stop loss and take profit
-export function calculateStopLossTakeProfit(
-  entryPrice: number,
-  stopLossPrice: number,
-  takeProfitPrice: number,
-  positionSize: number,
-  currencyPair: string,
-  accountCurrency: string,
-  isLong: boolean = true
-): {
-  riskRewardRatio: number;
-  stopLossPips: number;
-  takeProfitPips: number;
-  stopLossAmount: number;
-  takeProfitAmount: number;
-  pipValue: number;
-} {
-  // Calculate pip differences
-  const stopLossPips = calculatePipDifference(entryPrice, stopLossPrice, currencyPair);
-  const takeProfitPips = calculatePipDifference(entryPrice, takeProfitPrice, currencyPair);
-  
-  // Calculate pip value
-  const pipValue = calculatePipValue(currencyPair, accountCurrency, positionSize);
-  
-  // Calculate monetary values
-  const stopLossAmount = stopLossPips * pipValue;
-  const takeProfitAmount = takeProfitPips * pipValue;
-  
-  // Calculate risk/reward ratio
-  const riskRewardRatio = takeProfitAmount / stopLossAmount;
-  
-  return {
-    riskRewardRatio,
-    stopLossPips,
-    takeProfitPips,
-    stopLossAmount,
-    takeProfitAmount,
-    pipValue,
-  };
-}
+// Default leverage value
+export const defaultLeverage = 100;

@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { TextInput, Text, Divider, ProgressBar } from 'react-native-paper';
-
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { TextInput, Text, ProgressBar } from 'react-native-paper';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
 import CurrencyPairSelector from '../ui/CurrencyPairSelector';
 import AccountCurrencySelector from '../ui/AccountCurrencySelector';
-import { calculatePositionSize, formatNumber, formatCurrency } from '../../utils/calculators';
+import { calculatePositionSize, calculatePipValue, getCurrencySymbol } from '../../utils/calculators';
+import { theme } from '../../utils/theme';
 
 export default function PositionSizeCalculator() {
-  // State for inputs
   const [accountCurrency, setAccountCurrency] = useState('USD');
   const [currencyPair, setCurrencyPair] = useState('EUR/USD');
   const [accountBalance, setAccountBalance] = useState('10000');
@@ -17,16 +16,14 @@ export default function PositionSizeCalculator() {
   const [entryPrice, setEntryPrice] = useState('1.1000');
   const [stopLossPips, setStopLossPips] = useState('50');
   
-  // State for results
   const [positionSize, setPositionSize] = useState(0);
   const [riskAmount, setRiskAmount] = useState(0);
   const [pipValue, setPipValue] = useState(0);
-  
-  // Calculate results when inputs change
+
   useEffect(() => {
     calculateResults();
   }, [accountCurrency, currencyPair, accountBalance, riskPercentage, entryPrice, stopLossPips]);
-  
+
   const calculateResults = () => {
     const balance = parseFloat(accountBalance) || 0;
     const risk = parseFloat(riskPercentage) || 0;
@@ -35,168 +32,209 @@ export default function PositionSizeCalculator() {
     
     if (balance <= 0 || risk <= 0 || entry <= 0 || stopLoss <= 0) return;
     
-    const { positionSize: size, riskAmount: amount, pipValue: value } = calculatePositionSize(
+    // For simplicity, we're using an exchange rate of 1
+    // In a real app, you would fetch the current exchange rate
+    const exchangeRate = 1;
+    
+    // Calculate stop loss price from pips
+    const pipValue = calculatePipValue(accountCurrency, currencyPair, 1, exchangeRate);
+    setPipValue(pipValue);
+    
+    // Calculate risk amount
+    const riskAmt = balance * (risk / 100);
+    setRiskAmount(riskAmt);
+    
+    // Calculate position size
+    const stopLossPrice = entry - (stopLoss * 0.0001); // Assuming 4 decimal places
+    const posSize = calculatePositionSize(
       balance,
       risk,
       entry,
-      stopLoss,
+      stopLossPrice,
       currencyPair,
-      accountCurrency
+      exchangeRate
     );
     
-    setPositionSize(size);
-    setRiskAmount(amount);
-    setPipValue(value);
+    setPositionSize(posSize);
   };
-  
+
+  const currencySymbol = getCurrencySymbol(accountCurrency);
+
   return (
-    <View style={styles.container}>
-      <CalculatorCard title="Position Size Calculator">
-        <View style={styles.inputsContainer}>
-          <AccountCurrencySelector
-            value={accountCurrency}
-            onChange={setAccountCurrency}
-          />
-          
-          <CurrencyPairSelector
-            value={currencyPair}
-            onChange={setCurrencyPair}
-          />
-          
-          <TextInput
-            label="Account Balance"
-            value={accountBalance}
-            onChangeText={setAccountBalance}
-            keyboardType="numeric"
-            left={<TextInput.Affix text={accountCurrency === 'USD' ? '$' : ''} />}
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
-          <TextInput
-            label="Risk Percentage"
-            value={riskPercentage}
-            onChangeText={setRiskPercentage}
-            keyboardType="numeric"
-            right={<TextInput.Affix text="%" />}
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
-          <TextInput
-            label="Entry Price"
-            value={entryPrice}
-            onChangeText={setEntryPrice}
-            keyboardType="numeric"
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
-          <TextInput
-            label="Stop Loss (in pips)"
-            value={stopLossPips}
-            onChangeText={setStopLossPips}
-            keyboardType="numeric"
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-        </View>
+    <ScrollView style={styles.container}>
+      <CalculatorCard 
+        title="Position Size Calculator" 
+        gradientColors={['#21D4FD', '#B721FF']}
+      >
+        <AccountCurrencySelector
+          value={accountCurrency}
+          onValueChange={setAccountCurrency}
+        />
         
-        <Divider style={styles.divider} />
+        <CurrencyPairSelector
+          value={currencyPair}
+          onValueChange={setCurrencyPair}
+        />
         
-        <View style={styles.resultsContainer}>
-          <ResultDisplay
-            label="Recommended Position Size"
-            value={`${formatNumber(positionSize, 2)} lots`}
-            color="#4CAF50"
-            isLarge
+        <TextInput
+          label="Account Balance"
+          value={accountBalance}
+          onChangeText={setAccountBalance}
+          keyboardType="numeric"
+          left={<TextInput.Affix text={currencySymbol} />}
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
+        
+        <TextInput
+          label="Risk Percentage"
+          value={riskPercentage}
+          onChangeText={setRiskPercentage}
+          keyboardType="numeric"
+          right={<TextInput.Affix text="%" />}
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
+        
+        <TextInput
+          label="Entry Price"
+          value={entryPrice}
+          onChangeText={setEntryPrice}
+          keyboardType="numeric"
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
+        
+        <TextInput
+          label="Stop Loss (in pips)"
+          value={stopLossPips}
+          onChangeText={setStopLossPips}
+          keyboardType="numeric"
+          right={<TextInput.Affix text="pips" />}
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
+        
+        <View style={styles.riskVisualization}>
+          <Text style={styles.riskLabel}>Risk Visualization</Text>
+          <ProgressBar
+            progress={parseFloat(riskPercentage) / 100}
+            color={
+              parseFloat(riskPercentage) <= 1 ? theme.colors.success :
+              parseFloat(riskPercentage) <= 2 ? theme.colors.info :
+              parseFloat(riskPercentage) <= 5 ? theme.colors.warning :
+              theme.colors.error
+            }
+            style={styles.progressBar}
           />
-          
-          <ResultDisplay
-            label="Risk Amount"
-            value={formatCurrency(riskAmount, accountCurrency)}
-            color="#F44336"
-          />
-          
-          <ResultDisplay
-            label="Pip Value"
-            value={formatCurrency(pipValue, accountCurrency)}
-            color="#2196F3"
-          />
-          
-          <View style={styles.riskVisualization}>
-            <Text style={styles.visualizationLabel}>
-              Risk: {formatNumber(parseFloat(riskPercentage) || 0, 1)}% of account
-            </Text>
-            <ProgressBar
-              progress={parseFloat(riskPercentage) / 100 || 0}
-              color={parseFloat(riskPercentage) > 3 ? '#F44336' : '#4CAF50'}
-              style={styles.progressBar}
-            />
-            <View style={styles.riskLevels}>
-              <Text style={[styles.riskLevel, { color: '#4CAF50' }]}>Low</Text>
-              <Text style={[styles.riskLevel, { color: '#FFC107' }]}>Medium</Text>
-              <Text style={[styles.riskLevel, { color: '#F44336' }]}>High</Text>
-            </View>
+          <View style={styles.riskLegend}>
+            <Text style={styles.riskLegendText}>0%</Text>
+            <Text style={[styles.riskLegendText, { color: theme.colors.error }]}>10%</Text>
           </View>
         </View>
+        
+        <ResultDisplay
+          title="Position Size Results"
+          results={[
+            {
+              label: 'Recommended Position Size',
+              value: `${positionSize.toFixed(2)} lots`,
+              isHighlighted: true,
+              color: theme.colors.primary,
+            },
+            {
+              label: 'Risk Amount',
+              value: `${currencySymbol}${riskAmount.toFixed(2)}`,
+              color: theme.colors.warning,
+            },
+            {
+              label: 'Pip Value',
+              value: `${currencySymbol}${pipValue.toFixed(2)} per pip`,
+            },
+            {
+              label: 'Stop Loss Distance',
+              value: `${stopLossPips} pips`,
+            },
+          ]}
+        />
+        
+        <View style={styles.explanationContainer}>
+          <Text style={styles.explanationTitle}>Position Sizing Guide</Text>
+          <Text style={styles.explanationText}>
+            Proper position sizing is crucial for risk management in forex trading.
+          </Text>
+          <Text style={styles.explanationText}>
+            The recommended risk per trade is 1-2% of your account balance.
+          </Text>
+          <Text style={styles.explanationText}>
+            Formula: Position Size = (Account Balance × Risk %) ÷ (Stop Loss in pips × Pip Value)
+          </Text>
+          <Text style={styles.explanationText}>
+            Always adjust your position size based on your risk tolerance and trading strategy.
+          </Text>
+        </View>
       </CalculatorCard>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  inputsContainer: {
-    marginBottom: 16,
+    backgroundColor: theme.colors.background,
   },
   input: {
-    marginBottom: 16,
-    backgroundColor: '#2A2A2A',
-  },
-  divider: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginVertical: 16,
-  },
-  resultsContainer: {
-    marginTop: 8,
+    marginBottom: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
   },
   riskVisualization: {
-    marginTop: 24,
+    marginBottom: theme.spacing.lg,
   },
-  visualizationLabel: {
-    fontSize: 14,
-    color: '#aaa',
-    marginBottom: 8,
+  riskLabel: {
+    fontSize: theme.typography.fontSizes.sm,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
   },
   progressBar: {
-    height: 8,
-    borderRadius: 4,
+    height: 10,
+    borderRadius: theme.borderRadius.sm,
   },
-  riskLevels: {
+  riskLegend: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 4,
+    marginTop: theme.spacing.xs,
   },
-  riskLevel: {
-    fontSize: 12,
+  riskLegendText: {
+    fontSize: theme.typography.fontSizes.xs,
+    color: theme.colors.textSecondary,
+  },
+  explanationContainer: {
+    marginTop: theme.spacing.lg,
+    padding: theme.spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: theme.borderRadius.md,
+  },
+  explanationTitle: {
+    fontSize: theme.typography.fontSizes.lg,
+    fontWeight: theme.typography.fontWeights.bold as any,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  explanationText: {
+    fontSize: theme.typography.fontSizes.md,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.sm,
   },
 });

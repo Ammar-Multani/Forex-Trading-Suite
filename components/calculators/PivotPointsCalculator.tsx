@@ -1,29 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { TextInput, Text, Divider, RadioButton } from 'react-native-paper';
-import { VictoryChart, VictoryLine, VictoryAxis, VictoryTheme, VictoryScatter } from 'victory-native';
-
+import { TextInput, Text, SegmentedButtons } from 'react-native-paper';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
-import { calculatePivotPoints, formatNumber } from '../../utils/calculators';
+import { calculatePivotPoints } from '../../utils/calculators';
+import { theme } from '../../utils/theme';
 
 export default function PivotPointsCalculator() {
-  // State for inputs
   const [highPrice, setHighPrice] = useState('1.2000');
   const [lowPrice, setLowPrice] = useState('1.1800');
   const [closePrice, setClosePrice] = useState('1.1900');
   const [method, setMethod] = useState('standard');
   
-  // State for results
-  const [pivotPoint, setPivotPoint] = useState(0);
-  const [resistanceLevels, setResistanceLevels] = useState<number[]>([]);
-  const [supportLevels, setSupportLevels] = useState<number[]>([]);
-  
-  // Calculate results when inputs change
+  const [results, setResults] = useState({
+    pivot: 0,
+    resistance: [] as number[],
+    support: [] as number[],
+  });
+
   useEffect(() => {
     calculateResults();
   }, [highPrice, lowPrice, closePrice, method]);
-  
+
   const calculateResults = () => {
     const high = parseFloat(highPrice) || 0;
     const low = parseFloat(lowPrice) || 0;
@@ -31,283 +29,220 @@ export default function PivotPointsCalculator() {
     
     if (high <= 0 || low <= 0 || close <= 0) return;
     
-    const { pivot, resistance, support } = calculatePivotPoints(
+    const result = calculatePivotPoints(
       high,
       low,
       close,
       method as 'standard' | 'woodie' | 'camarilla' | 'demark'
     );
     
-    setPivotPoint(pivot);
-    setResistanceLevels(resistance);
-    setSupportLevels(support);
+    setResults(result);
   };
-  
-  // Prepare chart data
-  const getChartData = () => {
-    if (!pivotPoint) return [];
-    
-    const allLevels = [
-      { name: 'R3', value: resistanceLevels[2], type: 'resistance' },
-      { name: 'R2', value: resistanceLevels[1], type: 'resistance' },
-      { name: 'R1', value: resistanceLevels[0], type: 'resistance' },
-      { name: 'PP', value: pivotPoint, type: 'pivot' },
-      { name: 'S1', value: supportLevels[0], type: 'support' },
-      { name: 'S2', value: supportLevels[1], type: 'support' },
-      { name: 'S3', value: supportLevels[2], type: 'support' },
-    ];
-    
-    // Sort by price (descending)
-    return allLevels.sort((a, b) => b.value - a.value).map(level => ({
-      x: 1,
-      y: level.value,
-      name: level.name,
-      type: level.type
-    }));
+
+  // Format price values
+  const formatPrice = (value: number) => {
+    return value.toFixed(5);
   };
-  
+
   return (
-    <View style={styles.container}>
-      <CalculatorCard title="Pivot Points Calculator">
-        <View style={styles.inputsContainer}>
-          <TextInput
-            label="High Price"
-            value={highPrice}
-            onChangeText={setHighPrice}
-            keyboardType="numeric"
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
-          <TextInput
-            label="Low Price"
-            value={lowPrice}
-            onChangeText={setLowPrice}
-            keyboardType="numeric"
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
-          <TextInput
-            label="Close Price"
-            value={closePrice}
-            onChangeText={setClosePrice}
-            keyboardType="numeric"
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
-          <Text style={styles.radioLabel}>Calculation Method</Text>
-          <RadioButton.Group
-            onValueChange={value => setMethod(value)}
-            value={method}
-          >
-            <View style={styles.radioContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <RadioButton.Item
-                  label="Standard"
-                  value="standard"
-                  color="#6200ee"
-                  labelStyle={styles.radioLabel}
-                  style={styles.radioButton}
-                />
-                <RadioButton.Item
-                  label="Woodie's"
-                  value="woodie"
-                  color="#6200ee"
-                  labelStyle={styles.radioLabel}
-                  style={styles.radioButton}
-                />
-                <RadioButton.Item
-                  label="Camarilla"
-                  value="camarilla"
-                  color="#6200ee"
-                  labelStyle={styles.radioLabel}
-                  style={styles.radioButton}
-                />
-                <RadioButton.Item
-                  label="DeMark"
-                  value="demark"
-                  color="#6200ee"
-                  labelStyle={styles.radioLabel}
-                  style={styles.radioButton}
-                />
-              </ScrollView>
-            </View>
-          </RadioButton.Group>
-        </View>
+    <ScrollView style={styles.container}>
+      <CalculatorCard 
+        title="Pivot Points Calculator" 
+        gradientColors={['#A9C9FF', '#FFBBEC']}
+      >
+        <TextInput
+          label="High Price"
+          value={highPrice}
+          onChangeText={setHighPrice}
+          keyboardType="numeric"
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
         
-        <Divider style={styles.divider} />
+        <TextInput
+          label="Low Price"
+          value={lowPrice}
+          onChangeText={setLowPrice}
+          keyboardType="numeric"
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
+        
+        <TextInput
+          label="Close Price"
+          value={closePrice}
+          onChangeText={setClosePrice}
+          keyboardType="numeric"
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
+        
+        <Text style={styles.label}>Calculation Method</Text>
+        <SegmentedButtons
+          value={method}
+          onValueChange={setMethod}
+          buttons={[
+            { value: 'standard', label: 'Standard' },
+            { value: 'woodie', label: 'Woodie' },
+            { value: 'camarilla', label: 'Camarilla' },
+            { value: 'demark', label: 'DeMark' },
+          ]}
+          style={styles.segmentedButtons}
+        />
         
         <View style={styles.resultsContainer}>
-          <ResultDisplay
-            label="Pivot Point (PP)"
-            value={formatNumber(pivotPoint, 5)}
-            color="#FFC107"
-            isLarge
-          />
+          <View style={styles.pivotContainer}>
+            <Text style={styles.pivotLabel}>Pivot Point</Text>
+            <Text style={styles.pivotValue}>{formatPrice(results.pivot)}</Text>
+          </View>
           
           <View style={styles.levelsContainer}>
-            <View style={styles.levelSection}>
-              <Text style={styles.sectionTitle}>Resistance Levels</Text>
-              {resistanceLevels.map((level, index) => (
+            <View style={styles.levelColumn}>
+              <Text style={styles.levelColumnTitle}>Resistance Levels</Text>
+              {results.resistance.map((level, index) => (
                 <View key={`resistance-${index}`} style={styles.levelRow}>
-                  <Text style={styles.levelName}>R{index + 1}</Text>
-                  <Text style={[styles.levelValue, { color: '#F44336' }]}>
-                    {formatNumber(level, 5)}
+                  <Text style={styles.levelLabel}>R{index + 1}</Text>
+                  <Text style={[styles.levelValue, { color: theme.colors.error }]}>
+                    {formatPrice(level)}
                   </Text>
                 </View>
               ))}
             </View>
             
-            <View style={styles.levelSection}>
-              <Text style={styles.sectionTitle}>Support Levels</Text>
-              {supportLevels.map((level, index) => (
+            <View style={styles.levelColumn}>
+              <Text style={styles.levelColumnTitle}>Support Levels</Text>
+              {results.support.map((level, index) => (
                 <View key={`support-${index}`} style={styles.levelRow}>
-                  <Text style={styles.levelName}>S{index + 1}</Text>
-                  <Text style={[styles.levelValue, { color: '#4CAF50' }]}>
-                    {formatNumber(level, 5)}
+                  <Text style={styles.levelLabel}>S{index + 1}</Text>
+                  <Text style={[styles.levelValue, { color: theme.colors.success }]}>
+                    {formatPrice(level)}
                   </Text>
                 </View>
               ))}
             </View>
           </View>
-          
-          <View style={styles.chartContainer}>
-            <Text style={styles.chartTitle}>Price Levels</Text>
-            <VictoryChart
-              theme={VictoryTheme.material}
-              domainPadding={20}
-              height={300}
-              padding={{ top: 10, bottom: 40, left: 60, right: 40 }}
-              domain={{ x: [0, 2] }}
-            >
-              <VictoryAxis
-                style={{
-                  axis: { stroke: 'transparent' },
-                  tickLabels: { fill: 'transparent' },
-                  grid: { stroke: 'transparent' },
-                }}
-              />
-              <VictoryAxis
-                dependentAxis
-                style={{
-                  axis: { stroke: '#ccc' },
-                  tickLabels: { fill: '#ccc', fontSize: 10 },
-                  grid: { stroke: 'rgba(255,255,255,0.1)' },
-                }}
-              />
-              <VictoryScatter
-                data={getChartData()}
-                size={6}
-                style={{
-                  data: {
-                    fill: ({ datum }) => {
-                      if (datum.type === 'pivot') return '#FFC107';
-                      if (datum.type === 'resistance') return '#F44336';
-                      return '#4CAF50';
-                    }
-                  }
-                }}
-                labels={({ datum }) => `${datum.name} - ${formatNumber(datum.y, 5)}`}
-                labelComponent={
-                  <VictoryScatter
-                    labelComponent={
-                      <Text style={{ fontSize: 10, color: '#fff' }} />
-                    }
-                  />
-                }
-              />
-              <VictoryLine
-                data={getChartData()}
-                style={{
-                  data: { stroke: 'rgba(255,255,255,0.3)', strokeWidth: 1 },
-                }}
-              />
-            </VictoryChart>
-          </View>
+        </View>
+        
+        <View style={styles.explanationContainer}>
+          <Text style={styles.explanationTitle}>About Pivot Points</Text>
+          <Text style={styles.explanationText}>
+            Pivot points are technical indicators used to determine potential support and resistance levels in the market.
+          </Text>
+          <Text style={styles.explanationText}>
+            They are calculated using the previous period's high, low, and close prices.
+          </Text>
+          <Text style={styles.explanationText}>
+            Different calculation methods:
+            {'\n'}- Standard: The most common method
+            {'\n'}- Woodie: Places more emphasis on the closing price
+            {'\n'}- Camarilla: Creates more levels for intraday trading
+            {'\n'}- DeMark: Adapts based on the relationship between open and close
+          </Text>
+          <Text style={styles.explanationText}>
+            Traders use pivot points to identify potential entry and exit points, as well as to set stop-loss and take-profit levels.
+          </Text>
         </View>
       </CalculatorCard>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  inputsContainer: {
-    marginBottom: 16,
+    backgroundColor: theme.colors.background,
   },
   input: {
-    marginBottom: 16,
-    backgroundColor: '#2A2A2A',
+    marginBottom: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
   },
-  radioLabel: {
-    fontSize: 14,
-    color: '#fff',
+  label: {
+    fontSize: theme.typography.fontSizes.sm,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
   },
-  radioContainer: {
-    marginBottom: 16,
-  },
-  radioButton: {
-    paddingHorizontal: 8,
-  },
-  divider: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginVertical: 16,
+  segmentedButtons: {
+    marginBottom: theme.spacing.md,
   },
   resultsContainer: {
-    marginTop: 8,
+    marginTop: theme.spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+  },
+  pivotContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    marginBottom: theme.spacing.md,
+  },
+  pivotLabel: {
+    fontSize: theme.typography.fontSizes.lg,
+    fontWeight: theme.typography.fontWeights.bold as any,
+    color: theme.colors.primary,
+  },
+  pivotValue: {
+    fontSize: theme.typography.fontSizes.lg,
+    fontWeight: theme.typography.fontWeights.bold as any,
+    color: theme.colors.text,
   },
   levelsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 16,
   },
-  levelSection: {
+  levelColumn: {
     flex: 1,
-    marginHorizontal: 4,
+    paddingHorizontal: theme.spacing.sm,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
+  levelColumnTitle: {
+    fontSize: theme.typography.fontSizes.md,
+    fontWeight: theme.typography.fontWeights.bold as any,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
   },
   levelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
   },
-  levelName: {
-    color: '#aaa',
-    fontWeight: 'bold',
+  levelLabel: {
+    fontSize: theme.typography.fontSizes.md,
+    fontWeight: theme.typography.fontWeights.medium as any,
+    color: theme.colors.textSecondary,
   },
   levelValue: {
-    fontWeight: 'bold',
+    fontSize: theme.typography.fontSizes.md,
+    fontWeight: theme.typography.fontWeights.medium as any,
   },
-  chartContainer: {
-    marginTop: 24,
+  explanationContainer: {
+    marginTop: theme.spacing.lg,
+    padding: theme.spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: theme.borderRadius.md,
   },
-  chartTitle: {
-    fontSize: 16,
-    color: '#fff',
-    marginBottom: 8,
-    fontWeight: 'bold',
+  explanationTitle: {
+    fontSize: theme.typography.fontSizes.lg,
+    fontWeight: theme.typography.fontWeights.bold as any,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  explanationText: {
+    fontSize: theme.typography.fontSizes.md,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.sm,
   },
 });

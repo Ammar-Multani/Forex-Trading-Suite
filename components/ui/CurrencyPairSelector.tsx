@@ -2,34 +2,22 @@ import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import DropDownPicker from 'react-native-dropdown-picker';
-
-// Common currency pairs
-const CURRENCY_PAIRS = [
-  { label: 'EUR/USD', value: 'EUR/USD' },
-  { label: 'GBP/USD', value: 'GBP/USD' },
-  { label: 'USD/JPY', value: 'USD/JPY' },
-  { label: 'USD/CHF', value: 'USD/CHF' },
-  { label: 'AUD/USD', value: 'AUD/USD' },
-  { label: 'USD/CAD', value: 'USD/CAD' },
-  { label: 'NZD/USD', value: 'NZD/USD' },
-  { label: 'EUR/GBP', value: 'EUR/GBP' },
-  { label: 'EUR/JPY', value: 'EUR/JPY' },
-  { label: 'GBP/JPY', value: 'GBP/JPY' },
-];
+import { currencyPairs } from '../../utils/calculators';
+import { theme } from '../../utils/theme';
 
 interface CurrencyPairSelectorProps {
   value: string;
-  onChange: (value: string) => void;
+  onValueChange: (value: string) => void;
   label?: string;
 }
 
-export default function CurrencyPairSelector({ 
-  value, 
-  onChange,
-  label = 'Currency Pair'
+export default function CurrencyPairSelector({
+  value,
+  onValueChange,
+  label = 'Currency Pair',
 }: CurrencyPairSelectorProps) {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState(CURRENCY_PAIRS);
+  const [items, setItems] = useState(currencyPairs);
 
   return (
     <View style={styles.container}>
@@ -42,18 +30,20 @@ export default function CurrencyPairSelector({
         setValue={(callback) => {
           const newValue = callback(value);
           if (typeof newValue === 'string') {
-            onChange(newValue);
+            onValueChange(newValue);
           }
         }}
         setItems={setItems}
-        searchable={true}
-        placeholder="Select a currency pair"
         style={styles.dropdown}
         textStyle={styles.dropdownText}
         dropDownContainerStyle={styles.dropdownContainer}
-        searchContainerStyle={styles.searchContainer}
-        searchTextInputStyle={styles.searchInput}
+        placeholder="Select currency pair"
+        searchable={true}
+        searchPlaceholder="Search currency pairs..."
         listMode="SCROLLVIEW"
+        scrollViewProps={{
+          nestedScrollEnabled: true,
+        }}
       />
     </View>
   );
@@ -61,33 +51,26 @@ export default function CurrencyPairSelector({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: theme.spacing.md,
     zIndex: 1000,
   },
   label: {
-    fontSize: 14,
-    color: '#aaa',
-    marginBottom: 8,
+    marginBottom: theme.spacing.xs,
+    color: theme.colors.text,
+    fontSize: theme.typography.fontSizes.sm,
   },
   dropdown: {
-    backgroundColor: '#2A2A2A',
-    borderColor: '#444',
-    borderRadius: 8,
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
   },
   dropdownText: {
-    color: '#fff',
+    color: theme.colors.text,
+    fontSize: theme.typography.fontSizes.md,
   },
   dropdownContainer: {
-    backgroundColor: '#2A2A2A',
-    borderColor: '#444',
-  },
-  searchContainer: {
-    backgroundColor: '#2A2A2A',
-    borderBottomColor: '#444',
-  },
-  searchInput: {
-    backgroundColor: '#333',
-    color: '#fff',
-    borderColor: '#444',
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
   },
 });

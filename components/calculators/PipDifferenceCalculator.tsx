@@ -1,121 +1,138 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { TextInput, Text, Divider } from 'react-native-paper';
-
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { TextInput, Text } from 'react-native-paper';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
 import CurrencyPairSelector from '../ui/CurrencyPairSelector';
-import { calculatePipDifference, formatNumber } from '../../utils/calculators';
+import { calculatePipDifference, getPipValue } from '../../utils/calculators';
+import { theme } from '../../utils/theme';
 
 export default function PipDifferenceCalculator() {
-  // State for inputs
   const [currencyPair, setCurrencyPair] = useState('EUR/USD');
   const [priceA, setPriceA] = useState('1.1000');
   const [priceB, setPriceB] = useState('1.1050');
-  
-  // State for results
   const [pipDifference, setPipDifference] = useState(0);
-  
-  // Calculate results when inputs change
+  const [pipValue, setPipValue] = useState(0);
+
   useEffect(() => {
     calculateResults();
   }, [currencyPair, priceA, priceB]);
-  
+
   const calculateResults = () => {
-    const priceAValue = parseFloat(priceA) || 0;
-    const priceBValue = parseFloat(priceB) || 0;
+    const price1 = parseFloat(priceA) || 0;
+    const price2 = parseFloat(priceB) || 0;
     
-    if (priceAValue <= 0 || priceBValue <= 0) return;
+    if (price1 <= 0 || price2 <= 0) return;
     
-    const pips = calculatePipDifference(priceAValue, priceBValue, currencyPair);
+    const pips = calculatePipDifference(price1, price2, currencyPair);
     setPipDifference(pips);
+    setPipValue(getPipValue(currencyPair));
   };
-  
+
   return (
-    <View style={styles.container}>
-      <CalculatorCard title="Pip Difference Calculator">
-        <View style={styles.inputsContainer}>
-          <CurrencyPairSelector
-            value={currencyPair}
-            onChange={setCurrencyPair}
-          />
-          
-          <TextInput
-            label="Price A"
-            value={priceA}
-            onChangeText={setPriceA}
-            keyboardType="numeric"
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
-          <TextInput
-            label="Price B"
-            value={priceB}
-            onChangeText={setPriceB}
-            keyboardType="numeric"
-            style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-        </View>
+    <ScrollView style={styles.container}>
+      <CalculatorCard 
+        title="Pip Difference Calculator" 
+        gradientColors={['#8EC5FC', '#E0C3FC']}
+      >
+        <CurrencyPairSelector
+          value={currencyPair}
+          onValueChange={setCurrencyPair}
+        />
         
-        <Divider style={styles.divider} />
+        <TextInput
+          label="Price A"
+          value={priceA}
+          onChangeText={setPriceA}
+          keyboardType="numeric"
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
         
-        <View style={styles.resultsContainer}>
-          <ResultDisplay
-            label="Pip Difference"
-            value={formatNumber(pipDifference, 1)}
-            color="#4CAF50"
-            isLarge
-          />
-          
-          <View style={styles.infoContainer}>
-            <Text style={styles.infoText}>
-              For {currencyPair}, 1 pip = {currencyPair.includes('JPY') ? '0.01' : '0.0001'}
-            </Text>
-          </View>
+        <TextInput
+          label="Price B"
+          value={priceB}
+          onChangeText={setPriceB}
+          keyboardType="numeric"
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.border}
+          activeOutlineColor={theme.colors.primary}
+          textColor={theme.colors.text}
+        />
+        
+        <ResultDisplay
+          title="Pip Difference Results"
+          results={[
+            {
+              label: 'Currency Pair',
+              value: currencyPair,
+            },
+            {
+              label: 'Price A',
+              value: priceA,
+            },
+            {
+              label: 'Price B',
+              value: priceB,
+            },
+            {
+              label: 'Pip Value',
+              value: pipValue.toFixed(5),
+            },
+            {
+              label: 'Pip Difference',
+              value: pipDifference.toFixed(1),
+              isHighlighted: true,
+              color: theme.colors.primary,
+            },
+          ]}
+        />
+        
+        <View style={styles.explanationContainer}>
+          <Text style={styles.explanationTitle}>How It Works</Text>
+          <Text style={styles.explanationText}>
+            The pip difference calculator measures the number of pips between two price points for a given currency pair.
+          </Text>
+          <Text style={styles.explanationText}>
+            For most currency pairs, a pip is the fourth decimal place (0.0001). For pairs involving JPY, a pip is the second decimal place (0.01).
+          </Text>
+          <Text style={styles.explanationText}>
+            The formula used is: |Price A - Price B| ÷ Pip Value
+          </Text>
         </View>
       </CalculatorCard>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  inputsContainer: {
-    marginBottom: 16,
+    backgroundColor: theme.colors.background,
   },
   input: {
-    marginBottom: 16,
-    backgroundColor: '#2A2A2A',
+    marginBottom: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
   },
-  divider: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginVertical: 16,
+  explanationContainer: {
+    marginTop: theme.spacing.lg,
+    padding: theme.spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: theme.borderRadius.md,
   },
-  resultsContainer: {
-    marginTop: 8,
+  explanationTitle: {
+    fontSize: theme.typography.fontSizes.lg,
+    fontWeight: theme.typography.fontWeights.bold as any,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
   },
-  infoContainer: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
-  },
-  infoText: {
-    color: '#2196F3',
-    fontSize: 14,
+  explanationText: {
+    fontSize: theme.typography.fontSizes.md,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.sm,
   },
 });
