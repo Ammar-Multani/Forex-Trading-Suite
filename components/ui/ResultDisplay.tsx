@@ -12,7 +12,7 @@ interface ResultDisplayProps {
 export default function ResultDisplay({ 
   label, 
   value, 
-  color = '#fff',
+  color = '#fff', 
   isLarge = false 
 }: ResultDisplayProps) {
   return (

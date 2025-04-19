@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TextInput, Divider } from 'react-native-paper';
-
+import { calculatePipValue, formatCurrency } from '../../utils/calculators';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
-import AccountCurrencySelector from '../ui/AccountCurrencySelector';
 import CurrencyPairSelector from '../ui/CurrencyPairSelector';
-import { calculatePipValue, formatCurrency } from '../../utils/calculators';
+import AccountCurrencySelector from '../ui/AccountCurrencySelector';
 
 export default function PipCalculator() {
   // State for inputs
@@ -25,17 +24,14 @@ export default function PipCalculator() {
   }, [accountCurrency, currencyPair, positionSize, pips]);
   
   const calculateResults = () => {
-    const positionSizeNum = parseFloat(positionSize) || 0;
-    const pipsNum = parseFloat(pips) || 0;
+    const size = parseFloat(positionSize) || 0;
+    const pipCount = parseFloat(pips) || 0;
     
-    const calculatedPipValue = calculatePipValue(
-      currencyPair,
-      accountCurrency,
-      positionSizeNum
-    );
-    
-    setPipValue(calculatedPipValue);
-    setTotalValue(calculatedPipValue * pipsNum);
+    if (size > 0) {
+      const value = calculatePipValue(currencyPair, accountCurrency, size);
+      setPipValue(value);
+      setTotalValue(value * pipCount);
+    }
   };
   
   return (
@@ -86,13 +82,13 @@ export default function PipCalculator() {
             label="Pip Value"
             value={formatCurrency(pipValue, accountCurrency)}
             color="#4CAF50"
-            isLarge
           />
           
           <ResultDisplay
-            label={`Total Value for ${pips} Pips`}
+            label={`Total Value (${pips} pips)`}
             value={formatCurrency(totalValue, accountCurrency)}
             color="#2196F3"
+            isLarge
           />
         </View>
       </CalculatorCard>

@@ -1,22 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Switch } from 'react-native';
-import { TextInput, Divider, Text } from 'react-native-paper';
-
+import { View, StyleSheet } from 'react-native';
+import { TextInput, Divider, RadioButton, Text } from 'react-native-paper';
+import { calculateStopLossTakeProfit, formatCurrency } from '../../utils/calculators';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
-import AccountCurrencySelector from '../ui/AccountCurrencySelector';
 import CurrencyPairSelector from '../ui/CurrencyPairSelector';
-import { calculateStopLossTakeProfit, formatCurrency, formatNumber } from '../../utils/calculators';
+import AccountCurrencySelector from '../ui/AccountCurrencySelector';
 
 export default function StopLossTakeProfitCalculator() {
   // State for inputs
   const [accountCurrency, setAccountCurrency] = useState('USD');
   const [currencyPair, setCurrencyPair] = useState('EUR/USD');
-  const [entryPrice, setEntryPrice] = useState('1.1000');
-  const [stopLossPrice, setStopLossPrice] = useState('1.0950');
-  const [takeProfitPrice, setTakeProfitPrice] = useState('1.1100');
+  const [entryPrice, setEntryPrice] = useState('1.2000');
+  const [stopLossPrice, setStopLossPrice] = useState('1.1950');
+  const [takeProfitPrice, setTakeProfitPrice] = useState('1.2100');
   const [positionSize, setPositionSize] = useState('1');
-  const [isLong, setIsLong] = useState(true);
+  const [positionType, setPositionType] = useState('long');
   
   // State for results
   const [riskRewardRatio, setRiskRewardRatio] = useState(0);
@@ -29,40 +28,34 @@ export default function StopLossTakeProfitCalculator() {
   // Calculate results when inputs change
   useEffect(() => {
     calculateResults();
-  }, [accountCurrency, currencyPair, entryPrice, stopLossPrice, takeProfitPrice, positionSize, isLong]);
+  }, [accountCurrency, currencyPair, entryPrice, stopLossPrice, takeProfitPrice, positionSize, positionType]);
   
   const calculateResults = () => {
-    const entryPriceNum = parseFloat(entryPrice) || 0;
-    const stopLossPriceNum = parseFloat(stopLossPrice) || 0;
-    const takeProfitPriceNum = parseFloat(takeProfitPrice) || 0;
-    const positionSizeNum = parseFloat(positionSize) || 0;
+    const entry = parseFloat(entryPrice) || 0;
+    const stopLoss = parseFloat(stopLossPrice) || 0;
+    const takeProfit = parseFloat(takeProfitPrice) || 0;
+    const size = parseFloat(positionSize) || 0;
+    const isLong = positionType === 'long';
     
-    const { 
-      riskRewardRatio: calculatedRatio,
-      stopLossPips: calculatedSLPips,
-      takeProfitPips: calculatedTPPips,
-      stopLossAmount: calculatedSLAmount,
-      takeProfitAmount: calculatedTPAmount,
-      pipValue: calculatedPipValue
-    } = calculateStopLossTakeProfit(
-      entryPriceNum,
-      stopLossPriceNum,
-      takeProfitPriceNum,
-      positionSizeNum,
-      currencyPair,
-      accountCurrency,
-      isLong
-    );
-    
-    setRiskRewardRatio(calculatedRatio);
-    setStopLossPips(calculatedSLPips);
-    setTakeProfitPips(calculatedTPPips);
-    setStopLossAmount(calculatedSLAmount);
-    setTakeProfitAmount(calculatedTPAmount);
-    setPipValue(calculatedPipValue);
+    if (entry > 0 && stopLoss > 0 && takeProfit > 0 && size > 0) {
+      const result = calculateStopLossTakeProfit(
+        entry,
+        stopLoss,
+        takeProfit,
+        size,
+        currencyPair,
+        accountCurrency,
+        isLong
+      );
+      
+      setRiskRewardRatio(result.riskRewardRatio);
+      setStopLossPips(result.stopLossPips);
+      setTakeProfitPips(result.takeProfitPips);
+      setStopLossAmount(result.stopLossAmount);
+      setTakeProfitAmount(result.takeProfitAmount);
+      setPipValue(result.pipValue);
+    }
   };
-  
-  const togglePosition = () => setIsLong(!isLong);
   
   return (
     <View style={styles.container}>
@@ -78,19 +71,19 @@ export default function StopLossTakeProfitCalculator() {
             onChange={setCurrencyPair}
           />
           
-          <View style={styles.positionTypeContainer}>
-            <Text style={styles.positionTypeLabel}>Position Type</Text>
-            <View style={styles.switchContainer}>
-              <Text style={[styles.positionTypeText, !isLong && styles.activePositionType]}>Short</Text>
-              <Switch
-                value={isLong}
-                onValueChange={togglePosition}
-                trackColor={{ false: '#767577', true: '#6200ee' }}
-                thumbColor="#f4f3f4"
-              />
-              <Text style={[styles.positionTypeText, isLong && styles.activePositionType]}>Long</Text>
+          <Text style={styles.radioLabel}>Position Type</Text>
+          <RadioButton.Group onValueChange={value => setPositionType(value)} value={positionType}>
+            <View style={styles.radioContainer}>
+              <View style={styles.radioButton}>
+                <RadioButton value="long" color="#6200ee" />
+                <Text style={styles.radioText}>Long</Text>
+              </View>
+              <View style={styles.radioButton}>
+                <RadioButton value="short" color="#6200ee" />
+                <Text style={styles.radioText}>Short</Text>
+              </View>
             </View>
-          </View>
+          </RadioButton.Group>
           
           <TextInput
             label="Entry Price"
@@ -113,7 +106,7 @@ export default function StopLossTakeProfitCalculator() {
             style={styles.input}
             mode="outlined"
             outlineColor="#444"
-            activeOutlineColor="#F44336"
+            activeOutlineColor="#6200ee"
             textColor="#fff"
             theme={{ colors: { background: '#2A2A2A' } }}
           />
@@ -126,7 +119,7 @@ export default function StopLossTakeProfitCalculator() {
             style={styles.input}
             mode="outlined"
             outlineColor="#444"
-            activeOutlineColor="#4CAF50"
+            activeOutlineColor="#6200ee"
             textColor="#fff"
             theme={{ colors: { background: '#2A2A2A' } }}
           />
@@ -150,40 +143,34 @@ export default function StopLossTakeProfitCalculator() {
         <View style={styles.resultsContainer}>
           <ResultDisplay
             label="Risk/Reward Ratio"
-            value={`1:${formatNumber(riskRewardRatio, 2)}`}
-            color={riskRewardRatio >= 1 ? '#4CAF50' : '#F44336'}
+            value={`1:${riskRewardRatio.toFixed(2)}`}
+            color="#FFC107"
             isLarge
           />
           
           <View style={styles.resultsRow}>
             <View style={styles.resultColumn}>
               <ResultDisplay
-                label="Stop Loss (Pips)"
-                value={formatNumber(stopLossPips, 1)}
-                color="#F44336"
+                label="Stop Loss"
+                value={formatCurrency(stopLossAmount, accountCurrency)}
+                color="#FF5252"
+              />
+              <ResultDisplay
+                label="Stop Loss Pips"
+                value={`${stopLossPips.toFixed(1)} pips`}
+                color="#FF5252"
               />
             </View>
+            
             <View style={styles.resultColumn}>
               <ResultDisplay
-                label="Take Profit (Pips)"
-                value={formatNumber(takeProfitPips, 1)}
+                label="Take Profit"
+                value={formatCurrency(takeProfitAmount, accountCurrency)}
                 color="#4CAF50"
               />
-            </View>
-          </View>
-          
-          <View style={styles.resultsRow}>
-            <View style={styles.resultColumn}>
               <ResultDisplay
-                label="Stop Loss Amount"
-                value={formatCurrency(stopLossAmount, accountCurrency)}
-                color="#F44336"
-              />
-            </View>
-            <View style={styles.resultColumn}>
-              <ResultDisplay
-                label="Take Profit Amount"
-                value={formatCurrency(takeProfitAmount, accountCurrency)}
+                label="Take Profit Pips"
+                value={`${takeProfitPips.toFixed(1)} pips`}
                 color="#4CAF50"
               />
             </View>
@@ -211,26 +198,22 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#2A2A2A',
   },
-  positionTypeContainer: {
-    marginBottom: 16,
-  },
-  positionTypeLabel: {
+  radioLabel: {
     fontSize: 14,
     color: '#aaa',
     marginBottom: 8,
   },
-  switchContainer: {
+  radioContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  radioButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginRight: 24,
   },
-  positionTypeText: {
-    marginHorizontal: 8,
-    color: '#aaa',
-  },
-  activePositionType: {
-    color: '#6200ee',
-    fontWeight: 'bold',
+  radioText: {
+    color: '#fff',
   },
   divider: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -242,9 +225,10 @@ const styles = StyleSheet.create({
   resultsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginTop: 8,
   },
   resultColumn: {
-    width: '48%',
+    flex: 1,
+    marginHorizontal: 4,
   },
 });

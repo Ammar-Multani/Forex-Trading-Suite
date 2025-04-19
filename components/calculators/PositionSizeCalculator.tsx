@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TextInput, Divider } from 'react-native-paper';
-
+import { calculatePositionSize, formatCurrency } from '../../utils/calculators';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
-import AccountCurrencySelector from '../ui/AccountCurrencySelector';
 import CurrencyPairSelector from '../ui/CurrencyPairSelector';
-import { calculatePositionSize, formatCurrency, formatNumber } from '../../utils/calculators';
+import AccountCurrencySelector from '../ui/AccountCurrencySelector';
 
 export default function PositionSizeCalculator() {
   // State for inputs
@@ -14,7 +13,7 @@ export default function PositionSizeCalculator() {
   const [currencyPair, setCurrencyPair] = useState('EUR/USD');
   const [accountBalance, setAccountBalance] = useState('10000');
   const [riskPercentage, setRiskPercentage] = useState('2');
-  const [entryPrice, setEntryPrice] = useState('1.1000');
+  const [entryPrice, setEntryPrice] = useState('1.2000');
   const [stopLossPips, setStopLossPips] = useState('50');
   
   // State for results
@@ -28,23 +27,25 @@ export default function PositionSizeCalculator() {
   }, [accountCurrency, currencyPair, accountBalance, riskPercentage, entryPrice, stopLossPips]);
   
   const calculateResults = () => {
-    const accountBalanceNum = parseFloat(accountBalance) || 0;
-    const riskPercentageNum = parseFloat(riskPercentage) || 0;
-    const entryPriceNum = parseFloat(entryPrice) || 0;
-    const stopLossPipsNum = parseFloat(stopLossPips) || 0;
+    const balance = parseFloat(accountBalance) || 0;
+    const risk = parseFloat(riskPercentage) || 0;
+    const entry = parseFloat(entryPrice) || 0;
+    const stopLoss = parseFloat(stopLossPips) || 0;
     
-    const { positionSize: calculatedSize, riskAmount: calculatedRisk, pipValue: calculatedPipValue } = calculatePositionSize(
-      accountBalanceNum,
-      riskPercentageNum,
-      entryPriceNum,
-      stopLossPipsNum,
-      currencyPair,
-      accountCurrency
-    );
-    
-    setPositionSize(calculatedSize);
-    setRiskAmount(calculatedRisk);
-    setPipValue(calculatedPipValue);
+    if (balance > 0 && risk > 0 && entry > 0 && stopLoss > 0) {
+      const result = calculatePositionSize(
+        balance,
+        risk,
+        entry,
+        stopLoss,
+        currencyPair,
+        accountCurrency
+      );
+      
+      setPositionSize(result.positionSize);
+      setRiskAmount(result.riskAmount);
+      setPipValue(result.pipValue);
+    }
   };
   
   return (
@@ -121,7 +122,7 @@ export default function PositionSizeCalculator() {
         <View style={styles.resultsContainer}>
           <ResultDisplay
             label="Recommended Position Size"
-            value={`${formatNumber(positionSize, 2)} Lots`}
+            value={`${positionSize.toFixed(2)} lots`}
             color="#4CAF50"
             isLarge
           />
@@ -129,7 +130,7 @@ export default function PositionSizeCalculator() {
           <ResultDisplay
             label="Risk Amount"
             value={formatCurrency(riskAmount, accountCurrency)}
-            color="#F44336"
+            color="#FF5252"
           />
           
           <ResultDisplay

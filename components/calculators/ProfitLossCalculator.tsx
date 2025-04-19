@@ -1,21 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Switch } from 'react-native';
-import { TextInput, Divider, Text } from 'react-native-paper';
-
+import { View, StyleSheet } from 'react-native';
+import { TextInput, Divider, RadioButton, Text } from 'react-native-paper';
+import { calculateProfitLoss, formatCurrency } from '../../utils/calculators';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
-import AccountCurrencySelector from '../ui/AccountCurrencySelector';
 import CurrencyPairSelector from '../ui/CurrencyPairSelector';
-import { calculateProfitLoss, formatCurrency, formatNumber } from '../../utils/calculators';
+import AccountCurrencySelector from '../ui/AccountCurrencySelector';
 
 export default function ProfitLossCalculator() {
   // State for inputs
   const [accountCurrency, setAccountCurrency] = useState('USD');
   const [currencyPair, setCurrencyPair] = useState('EUR/USD');
-  const [entryPrice, setEntryPrice] = useState('1.1000');
-  const [exitPrice, setExitPrice] = useState('1.1050');
+  const [entryPrice, setEntryPrice] = useState('1.2000');
+  const [exitPrice, setExitPrice] = useState('1.2050');
   const [positionSize, setPositionSize] = useState('1');
-  const [isLong, setIsLong] = useState(true);
+  const [positionType, setPositionType] = useState('long');
   
   // State for results
   const [pips, setPips] = useState(0);
@@ -25,28 +24,29 @@ export default function ProfitLossCalculator() {
   // Calculate results when inputs change
   useEffect(() => {
     calculateResults();
-  }, [accountCurrency, currencyPair, entryPrice, exitPrice, positionSize, isLong]);
+  }, [accountCurrency, currencyPair, entryPrice, exitPrice, positionSize, positionType]);
   
   const calculateResults = () => {
-    const entryPriceNum = parseFloat(entryPrice) || 0;
-    const exitPriceNum = parseFloat(exitPrice) || 0;
-    const positionSizeNum = parseFloat(positionSize) || 0;
+    const entry = parseFloat(entryPrice) || 0;
+    const exit = parseFloat(exitPrice) || 0;
+    const size = parseFloat(positionSize) || 0;
+    const isLong = positionType === 'long';
     
-    const { pips: calculatedPips, profitLoss: calculatedPL, roi: calculatedRoi } = calculateProfitLoss(
-      entryPriceNum,
-      exitPriceNum,
-      positionSizeNum,
-      currencyPair,
-      accountCurrency,
-      isLong
-    );
-    
-    setPips(calculatedPips);
-    setProfitLoss(calculatedPL);
-    setRoi(calculatedRoi);
+    if (entry > 0 && exit > 0 && size > 0) {
+      const result = calculateProfitLoss(
+        entry,
+        exit,
+        size,
+        currencyPair,
+        accountCurrency,
+        isLong
+      );
+      
+      setPips(result.pips);
+      setProfitLoss(result.profitLoss);
+      setRoi(result.roi);
+    }
   };
-  
-  const togglePosition = () => setIsLong(!isLong);
   
   return (
     <View style={styles.container}>
@@ -62,19 +62,19 @@ export default function ProfitLossCalculator() {
             onChange={setCurrencyPair}
           />
           
-          <View style={styles.positionTypeContainer}>
-            <Text style={styles.positionTypeLabel}>Position Type</Text>
-            <View style={styles.switchContainer}>
-              <Text style={[styles.positionTypeText, !isLong && styles.activePositionType]}>Short</Text>
-              <Switch
-                value={isLong}
-                onValueChange={togglePosition}
-                trackColor={{ false: '#767577', true: '#6200ee' }}
-                thumbColor="#f4f3f4"
-              />
-              <Text style={[styles.positionTypeText, isLong && styles.activePositionType]}>Long</Text>
+          <Text style={styles.radioLabel}>Position Type</Text>
+          <RadioButton.Group onValueChange={value => setPositionType(value)} value={positionType}>
+            <View style={styles.radioContainer}>
+              <View style={styles.radioButton}>
+                <RadioButton value="long" color="#6200ee" />
+                <Text style={styles.radioText}>Long</Text>
+              </View>
+              <View style={styles.radioButton}>
+                <RadioButton value="short" color="#6200ee" />
+                <Text style={styles.radioText}>Short</Text>
+              </View>
             </View>
-          </View>
+          </RadioButton.Group>
           
           <TextInput
             label="Entry Price"
@@ -122,20 +122,20 @@ export default function ProfitLossCalculator() {
           <ResultDisplay
             label="Profit/Loss"
             value={formatCurrency(profitLoss, accountCurrency)}
-            color={profitLoss >= 0 ? '#4CAF50' : '#F44336'}
+            color={profitLoss >= 0 ? '#4CAF50' : '#FF5252'}
             isLarge
           />
           
           <ResultDisplay
             label="Pips"
-            value={formatNumber(pips, 1)}
-            color={pips >= 0 ? '#4CAF50' : '#F44336'}
+            value={`${pips.toFixed(1)} pips`}
+            color={pips >= 0 ? '#4CAF50' : '#FF5252'}
           />
           
           <ResultDisplay
             label="Return on Investment"
-            value={`${formatNumber(roi, 2)}%`}
-            color={roi >= 0 ? '#4CAF50' : '#F44336'}
+            value={`${roi.toFixed(2)}%`}
+            color={roi >= 0 ? '#4CAF50' : '#FF5252'}
           />
         </View>
       </CalculatorCard>
@@ -154,26 +154,22 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#2A2A2A',
   },
-  positionTypeContainer: {
-    marginBottom: 16,
-  },
-  positionTypeLabel: {
+  radioLabel: {
     fontSize: 14,
     color: '#aaa',
     marginBottom: 8,
   },
-  switchContainer: {
+  radioContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  radioButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginRight: 24,
   },
-  positionTypeText: {
-    marginHorizontal: 8,
-    color: '#aaa',
-  },
-  activePositionType: {
-    color: '#6200ee',
-    fontWeight: 'bold',
+  radioText: {
+    color: '#fff',
   },
   divider: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',

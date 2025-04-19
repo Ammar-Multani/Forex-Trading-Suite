@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { TextInput, Divider, Text } from 'react-native-paper';
 import DropDownPicker from 'react-native-dropdown-picker';
-
+import { calculatePivotPoints } from '../../utils/calculators';
 import CalculatorCard from '../ui/CalculatorCard';
-import ResultDisplay from '../ui/ResultDisplay';
-import { calculatePivotPoints, formatNumber } from '../../utils/calculators';
 
 export default function PivotPointsCalculator() {
   // State for inputs
   const [highPrice, setHighPrice] = useState('1.2000');
-  const [lowPrice, setLowPrice] = useState('1.1800');
-  const [closePrice, setClosePrice] = useState('1.1900');
+  const [lowPrice, setLowPrice] = useState('1.1900');
+  const [closePrice, setClosePrice] = useState('1.1950');
   
   // State for method dropdown
   const [methodOpen, setMethodOpen] = useState(false);
@@ -34,20 +32,26 @@ export default function PivotPointsCalculator() {
   }, [highPrice, lowPrice, closePrice, method]);
   
   const calculateResults = () => {
-    const highPriceNum = parseFloat(highPrice) || 0;
-    const lowPriceNum = parseFloat(lowPrice) || 0;
-    const closePriceNum = parseFloat(closePrice) || 0;
+    const high = parseFloat(highPrice) || 0;
+    const low = parseFloat(lowPrice) || 0;
+    const close = parseFloat(closePrice) || 0;
     
-    const { pivot: calculatedPivot, resistance: calculatedResistance, support: calculatedSupport } = calculatePivotPoints(
-      highPriceNum,
-      lowPriceNum,
-      closePriceNum,
-      method as 'standard' | 'woodie' | 'camarilla' | 'demark'
-    );
-    
-    setPivot(calculatedPivot);
-    setResistance(calculatedResistance);
-    setSupport(calculatedSupport);
+    if (high > 0 && low > 0 && close > 0) {
+      const result = calculatePivotPoints(
+        high,
+        low,
+        close,
+        method as 'standard' | 'woodie' | 'camarilla' | 'demark'
+      );
+      
+      setPivot(result.pivot);
+      setResistance(result.resistance);
+      setSupport(result.support);
+    }
+  };
+  
+  const formatPrice = (price: number) => {
+    return price.toFixed(5);
   };
   
   return (
@@ -113,46 +117,34 @@ export default function PivotPointsCalculator() {
         <Divider style={styles.divider} />
         
         <View style={styles.resultsContainer}>
-          <ResultDisplay
-            label="Pivot Point (PP)"
-            value={formatNumber(pivot, 5)}
-            color="#6200ee"
-            isLarge
-          />
-          
-          <Divider style={styles.smallDivider} />
-          
-          <Text style={styles.sectionTitle}>Resistance Levels</Text>
-          <View style={styles.levelsContainer}>
-            <View style={styles.levelRow}>
-              <Text style={styles.levelLabel}>R1</Text>
-              <Text style={styles.levelValue}>{formatNumber(resistance[0], 5)}</Text>
-            </View>
-            <View style={styles.levelRow}>
-              <Text style={styles.levelLabel}>R2</Text>
-              <Text style={styles.levelValue}>{formatNumber(resistance[1], 5)}</Text>
-            </View>
-            <View style={styles.levelRow}>
-              <Text style={styles.levelLabel}>R3</Text>
-              <Text style={styles.levelValue}>{formatNumber(resistance[2], 5)}</Text>
-            </View>
+          <View style={styles.pivotContainer}>
+            <Text style={styles.sectionTitle}>Pivot Point</Text>
+            <Text style={styles.pivotValue}>{formatPrice(pivot)}</Text>
           </View>
           
-          <Divider style={styles.smallDivider} />
-          
-          <Text style={styles.sectionTitle}>Support Levels</Text>
           <View style={styles.levelsContainer}>
-            <View style={styles.levelRow}>
-              <Text style={styles.levelLabel}>S1</Text>
-              <Text style={styles.levelValue}>{formatNumber(support[0], 5)}</Text>
+            <View style={styles.levelColumn}>
+              <Text style={styles.columnTitle}>Resistance</Text>
+              {resistance.map((level, index) => (
+                <View key={`r${index + 1}`} style={styles.levelRow}>
+                  <Text style={styles.levelLabel}>{`R${index + 1}`}</Text>
+                  <Text style={[styles.levelValue, { color: '#FF5252' }]}>
+                    {formatPrice(level)}
+                  </Text>
+                </View>
+              ))}
             </View>
-            <View style={styles.levelRow}>
-              <Text style={styles.levelLabel}>S2</Text>
-              <Text style={styles.levelValue}>{formatNumber(support[1], 5)}</Text>
-            </View>
-            <View style={styles.levelRow}>
-              <Text style={styles.levelLabel}>S3</Text>
-              <Text style={styles.levelValue}>{formatNumber(support[2], 5)}</Text>
+            
+            <View style={styles.levelColumn}>
+              <Text style={styles.columnTitle}>Support</Text>
+              {support.map((level, index) => (
+                <View key={`s${index + 1}`} style={styles.levelRow}>
+                  <Text style={styles.levelLabel}>{`S${index + 1}`}</Text>
+                  <Text style={[styles.levelValue, { color: '#4CAF50' }]}>
+                    {formatPrice(level)}
+                  </Text>
+                </View>
+              ))}
             </View>
           </View>
         </View>
@@ -196,21 +188,41 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     marginVertical: 16,
   },
-  smallDivider: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginVertical: 12,
-  },
   resultsContainer: {
     marginTop: 8,
+  },
+  pivotContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 8,
+  },
+  pivotValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFC107',
   },
   levelsContainer: {
-    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  levelColumn: {
+    flex: 1,
+  },
+  columnTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#aaa',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   levelRow: {
     flexDirection: 'row',
@@ -220,10 +232,10 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   levelLabel: {
-    color: '#6200ee',
     fontWeight: 'bold',
+    color: '#fff',
   },
   levelValue: {
-    color: '#fff',
+    fontWeight: 'bold',
   },
 });

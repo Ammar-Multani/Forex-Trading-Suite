@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { TextInput, Divider, Text } from 'react-native-paper';
-import { VictoryChart, VictoryLine, VictoryAxis, VictoryTheme } from 'victory-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import { TextInput, Button, Text, Divider } from 'react-native-paper';
+import { LineChart } from 'react-native-chart-kit';
 import DropDownPicker from 'react-native-dropdown-picker';
 
 import CalculatorCard from '../ui/CalculatorCard';
@@ -52,6 +52,19 @@ export default function CompoundingCalculator() {
     setEndingBalance(endBalance);
     setTotalEarnings(earnings);
     setGrowthData(data);
+  };
+  
+  // Prepare data for chart
+  const chartData = {
+    labels: growthData.map(item => `${item.x}yr`),
+    datasets: [
+      {
+        data: growthData.map(item => item.y),
+        color: (opacity = 1) => `rgba(98, 0, 238, ${opacity})`,
+        strokeWidth: 2
+      }
+    ],
+    legend: ["Growth"]
   };
   
   return (
@@ -139,40 +152,36 @@ export default function CompoundingCalculator() {
           
           <View style={styles.chartContainer}>
             <Text style={styles.chartTitle}>Growth Chart</Text>
-            <VictoryChart
-              theme={VictoryTheme.material}
-              domainPadding={20}
-              height={250}
-              padding={{ top: 10, bottom: 40, left: 60, right: 40 }}
-            >
-              <VictoryAxis
-                tickFormat={(t) => `${t}yr`}
+            {growthData.length > 1 && (
+              <LineChart
+                data={chartData}
+                width={Dimensions.get("window").width - 64}
+                height={220}
+                chartConfig={{
+                  backgroundColor: "#1E1E1E",
+                  backgroundGradientFrom: "#1E1E1E",
+                  backgroundGradientTo: "#1E1E1E",
+                  decimalPlaces: 0,
+                  color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                  style: {
+                    borderRadius: 16
+                  },
+                  propsForDots: {
+                    r: "4",
+                    strokeWidth: "2",
+                    stroke: "#6200ee"
+                  }
+                }}
+                bezier
                 style={{
-                  axis: { stroke: '#ccc' },
-                  tickLabels: { fill: '#ccc', fontSize: 10 },
-                  grid: { stroke: 'rgba(255,255,255,0.1)' },
+                  marginVertical: 8,
+                  borderRadius: 16
                 }}
+                yAxisLabel={accountCurrency === 'USD' ? '$' : ''}
+                yAxisSuffix=""
               />
-              <VictoryAxis
-                dependentAxis
-                tickFormat={(t) => `${accountCurrency}${Math.round(t / 1000)}k`}
-                style={{
-                  axis: { stroke: '#ccc' },
-                  tickLabels: { fill: '#ccc', fontSize: 10 },
-                  grid: { stroke: 'rgba(255,255,255,0.1)' },
-                }}
-              />
-              <VictoryLine
-                data={growthData}
-                style={{
-                  data: { stroke: '#6200ee', strokeWidth: 3 },
-                }}
-                animate={{
-                  duration: 500,
-                  onLoad: { duration: 500 },
-                }}
-              />
-            </VictoryChart>
+            )}
           </View>
         </View>
       </CalculatorCard>

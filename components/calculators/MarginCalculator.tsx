@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TextInput, Divider } from 'react-native-paper';
-
+import { calculateMargin, formatCurrency } from '../../utils/calculators';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
-import AccountCurrencySelector from '../ui/AccountCurrencySelector';
 import CurrencyPairSelector from '../ui/CurrencyPairSelector';
-import { calculateMargin, formatCurrency } from '../../utils/calculators';
+import AccountCurrencySelector from '../ui/AccountCurrencySelector';
 
 export default function MarginCalculator() {
   // State for inputs
@@ -25,18 +24,20 @@ export default function MarginCalculator() {
   }, [accountCurrency, currencyPair, positionSize, leverage]);
   
   const calculateResults = () => {
-    const positionSizeNum = parseFloat(positionSize) || 0;
-    const leverageNum = parseFloat(leverage) || 1;
+    const size = parseFloat(positionSize) || 0;
+    const lev = parseFloat(leverage) || 1;
     
-    const { requiredMargin: margin, marginLevel: level } = calculateMargin(
-      currencyPair,
-      accountCurrency,
-      positionSizeNum,
-      leverageNum
-    );
-    
-    setRequiredMargin(margin);
-    setMarginLevel(level);
+    if (size > 0 && lev > 0) {
+      const result = calculateMargin(
+        currencyPair,
+        accountCurrency,
+        size,
+        lev
+      );
+      
+      setRequiredMargin(result.requiredMargin);
+      setMarginLevel(result.marginLevel);
+    }
   };
   
   return (
@@ -71,7 +72,7 @@ export default function MarginCalculator() {
             value={leverage}
             onChangeText={setLeverage}
             keyboardType="numeric"
-            right={<TextInput.Affix text="x" />}
+            right={<TextInput.Affix text=":1" />}
             style={styles.input}
             mode="outlined"
             outlineColor="#444"
@@ -93,7 +94,7 @@ export default function MarginCalculator() {
           
           <ResultDisplay
             label="Margin Level"
-            value={`${formatNumber(marginLevel, 2)}%`}
+            value={`${marginLevel.toFixed(2)}%`}
             color="#2196F3"
           />
         </View>
@@ -121,11 +122,3 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
-
-// Helper function to format numbers
-function formatNumber(num: number, decimals = 2): string {
-  return num.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}

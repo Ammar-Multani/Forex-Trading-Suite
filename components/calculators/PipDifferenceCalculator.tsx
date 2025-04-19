@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TextInput, Divider } from 'react-native-paper';
-
+import { calculatePipDifference } from '../../utils/calculators';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
 import CurrencyPairSelector from '../ui/CurrencyPairSelector';
-import { calculatePipDifference, formatNumber } from '../../utils/calculators';
 
 export default function PipDifferenceCalculator() {
   // State for inputs
   const [currencyPair, setCurrencyPair] = useState('EUR/USD');
-  const [priceA, setPriceA] = useState('1.1000');
-  const [priceB, setPriceB] = useState('1.1050');
+  const [priceA, setPriceA] = useState('1.2000');
+  const [priceB, setPriceB] = useState('1.1950');
   
   // State for results
   const [pipDifference, setPipDifference] = useState(0);
@@ -22,16 +21,13 @@ export default function PipDifferenceCalculator() {
   }, [currencyPair, priceA, priceB]);
   
   const calculateResults = () => {
-    const priceANum = parseFloat(priceA) || 0;
-    const priceBNum = parseFloat(priceB) || 0;
+    const a = parseFloat(priceA) || 0;
+    const b = parseFloat(priceB) || 0;
     
-    const calculatedPipDifference = calculatePipDifference(
-      priceANum,
-      priceBNum,
-      currencyPair
-    );
-    
-    setPipDifference(calculatedPipDifference);
+    if (a > 0 && b > 0) {
+      const pips = calculatePipDifference(a, b, currencyPair);
+      setPipDifference(pips);
+    }
   };
   
   return (
@@ -75,7 +71,7 @@ export default function PipDifferenceCalculator() {
         <View style={styles.resultsContainer}>
           <ResultDisplay
             label="Pip Difference"
-            value={formatNumber(pipDifference, 1)}
+            value={pipDifference.toFixed(1)}
             color="#4CAF50"
             isLarge
           />
