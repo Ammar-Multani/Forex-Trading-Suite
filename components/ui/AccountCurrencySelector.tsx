@@ -2,22 +2,32 @@ import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { accountCurrencies } from '../../utils/calculators';
-import { theme } from '../../utils/theme';
+
+// Common account currencies
+const ACCOUNT_CURRENCIES = [
+  { label: 'USD ($)', value: 'USD' },
+  { label: 'EUR (€)', value: 'EUR' },
+  { label: 'GBP (£)', value: 'GBP' },
+  { label: 'JPY (¥)', value: 'JPY' },
+  { label: 'CHF (Fr)', value: 'CHF' },
+  { label: 'AUD (A$)', value: 'AUD' },
+  { label: 'CAD (C$)', value: 'CAD' },
+  { label: 'NZD (NZ$)', value: 'NZD' },
+];
 
 interface AccountCurrencySelectorProps {
   value: string;
-  onValueChange: (value: string) => void;
+  onChange: (value: string) => void;
   label?: string;
 }
 
-export default function AccountCurrencySelector({
-  value,
-  onValueChange,
-  label = 'Account Currency',
+export default function AccountCurrencySelector({ 
+  value, 
+  onChange,
+  label = 'Account Currency'
 }: AccountCurrencySelectorProps) {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState(accountCurrencies);
+  const [items, setItems] = useState(ACCOUNT_CURRENCIES);
 
   return (
     <View style={styles.container}>
@@ -30,20 +40,15 @@ export default function AccountCurrencySelector({
         setValue={(callback) => {
           const newValue = callback(value);
           if (typeof newValue === 'string') {
-            onValueChange(newValue);
+            onChange(newValue);
           }
         }}
         setItems={setItems}
+        placeholder="Select account currency"
         style={styles.dropdown}
         textStyle={styles.dropdownText}
         dropDownContainerStyle={styles.dropdownContainer}
-        placeholder="Select account currency"
-        searchable={true}
-        searchPlaceholder="Search currencies..."
         listMode="SCROLLVIEW"
-        scrollViewProps={{
-          nestedScrollEnabled: true,
-        }}
       />
     </View>
   );
@@ -51,26 +56,24 @@ export default function AccountCurrencySelector({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: theme.spacing.md,
-    zIndex: 2000,
+    marginBottom: 16,
+    zIndex: 1000,
   },
   label: {
-    marginBottom: theme.spacing.xs,
-    color: theme.colors.text,
-    fontSize: theme.typography.fontSizes.sm,
+    fontSize: 14,
+    color: '#aaa',
+    marginBottom: 8,
   },
   dropdown: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
+    backgroundColor: '#2A2A2A',
+    borderColor: '#444',
+    borderRadius: 8,
   },
   dropdownText: {
-    color: theme.colors.text,
-    fontSize: theme.typography.fontSizes.md,
+    color: '#fff',
   },
   dropdownContainer: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
+    backgroundColor: '#2A2A2A',
+    borderColor: '#444',
   },
 });

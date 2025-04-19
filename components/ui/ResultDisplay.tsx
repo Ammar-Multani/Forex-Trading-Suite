@@ -1,84 +1,50 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
-import { Text, Divider } from 'react-native-paper';
-import { theme } from '../../utils/theme';
+import { View, StyleSheet } from 'react-native';
+import { Text } from 'react-native-paper';
 
-interface ResultItem {
+interface ResultDisplayProps {
   label: string;
   value: string | number;
   color?: string;
-  isHighlighted?: boolean;
+  isLarge?: boolean;
 }
 
-interface ResultDisplayProps {
-  title?: string;
-  results: ResultItem[];
-  style?: ViewStyle;
-}
-
-export default function ResultDisplay({
-  title = 'Results',
-  results,
-  style,
+export default function ResultDisplay({ 
+  label, 
+  value, 
+  color = '#fff',
+  isLarge = false 
 }: ResultDisplayProps) {
   return (
-    <View style={[styles.container, style]}>
-      {title && <Text style={styles.title}>{title}</Text>}
-      <Divider style={styles.divider} />
-      
-      {results.map((item, index) => (
-        <View key={index} style={styles.resultRow}>
-          <Text style={styles.label}>{item.label}</Text>
-          <Text 
-            style={[
-              styles.value, 
-              item.color ? { color: item.color } : null,
-              item.isHighlighted ? styles.highlighted : null,
-            ]}
-          >
-            {item.value}
-          </Text>
-        </View>
-      ))}
+    <View style={styles.container}>
+      <Text style={styles.label}>{label}</Text>
+      <Text 
+        style={[
+          styles.value, 
+          { color }, 
+          isLarge && styles.largeValue
+        ]}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    marginVertical: theme.spacing.md,
-    ...theme.shadows.small,
-  },
-  title: {
-    fontSize: theme.typography.fontSizes.lg,
-    fontWeight: theme.typography.fontWeights.bold as any,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.sm,
-  },
-  divider: {
-    backgroundColor: theme.colors.border,
-    marginBottom: theme.spacing.md,
-  },
-  resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
+    marginBottom: 12,
   },
   label: {
-    fontSize: theme.typography.fontSizes.md,
-    color: theme.colors.textSecondary,
+    fontSize: 14,
+    color: '#aaa',
+    marginBottom: 4,
   },
   value: {
-    fontSize: theme.typography.fontSizes.md,
-    fontWeight: theme.typography.fontWeights.medium as any,
-    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: 'bold',
   },
-  highlighted: {
-    fontSize: theme.typography.fontSizes.lg,
-    fontWeight: theme.typography.fontWeights.bold as any,
+  largeValue: {
+    fontSize: 24,
   },
 });

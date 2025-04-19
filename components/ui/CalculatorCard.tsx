@@ -1,62 +1,45 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { Card, Text } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { theme } from '../../utils/theme';
+import { View, StyleSheet } from 'react-native';
+import { Surface, Text } from 'react-native-paper';
 
 interface CalculatorCardProps {
   title: string;
   children: React.ReactNode;
-  gradientColors?: string[];
-  style?: ViewStyle;
-  titleStyle?: TextStyle;
 }
 
-export default function CalculatorCard({
-  title,
-  children,
-  gradientColors = ['#4158D0', '#C850C0'],
-  style,
-  titleStyle,
-}: CalculatorCardProps) {
+export default function CalculatorCard({ title, children }: CalculatorCardProps) {
   return (
-    <Card style={[styles.card, style]}>
-      <LinearGradient
-        colors={gradientColors}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.headerGradient}
-      >
-        <Card.Title
-          title={title}
-          titleStyle={[styles.title, titleStyle]}
-          titleVariant="titleLarge"
-        />
-      </LinearGradient>
-      <Card.Content style={styles.content}>
+    <Surface style={styles.card}>
+      <View style={styles.titleContainer}>
+        <Text style={styles.title}>{title}</Text>
+      </View>
+      <View style={styles.content}>
         {children}
-      </Card.Content>
-    </Card>
+      </View>
+    </Surface>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: theme.spacing.md,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: 16,
+    backgroundColor: '#1E1E1E',
+    marginBottom: 16,
     overflow: 'hidden',
-    backgroundColor: theme.colors.surface,
-    ...theme.shadows.medium,
+    elevation: 4,
   },
-  headerGradient: {
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
+  titleContainer: {
+    padding: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   title: {
-    color: 'white',
+    fontSize: 18,
     fontWeight: 'bold',
+    color: '#fff',
   },
   content: {
-    paddingVertical: theme.spacing.md,
+    padding: 16,
   },
 });
