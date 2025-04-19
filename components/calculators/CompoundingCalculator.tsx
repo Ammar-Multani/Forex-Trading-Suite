@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
-import { TextInput, Button, Text, Divider } from 'react-native-paper';
-import { LineChart } from 'react-native-chart-kit';
+import { TextInput, Text, Divider } from 'react-native-paper';
 import DropDownPicker from 'react-native-dropdown-picker';
+import Svg, { Path, Line, Text as SvgText } from 'react-native-svg';
 
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
@@ -54,17 +54,123 @@ export default function CompoundingCalculator() {
     setGrowthData(data);
   };
   
-  // Prepare data for chart
-  const chartData = {
-    labels: growthData.map(item => `${item.x}yr`),
-    datasets: [
-      {
-        data: growthData.map(item => item.y),
-        color: (opacity = 1) => `rgba(98, 0, 238, ${opacity})`,
-        strokeWidth: 2
+  // Simple chart rendering
+  const renderChart = () => {
+    if (growthData.length < 2) return null;
+    
+    const chartWidth = Dimensions.get('window').width - 64;
+    const chartHeight = 200;
+    const paddingLeft = 40;
+    const paddingBottom = 30;
+    const graphWidth = chartWidth - paddingLeft;
+    const graphHeight = chartHeight - paddingBottom;
+    
+    // Find max value for scaling
+    const maxValue = Math.max(...growthData.map(d => d.y));
+    const minValue = 0;
+    
+    // Create path for the line
+    let path = '';
+    growthData.forEach((point, index) => {
+      const x = paddingLeft + (point.x / growthData[growthData.length - 1].x) * graphWidth;
+      const y = chartHeight - paddingBottom - ((point.y - minValue) / (maxValue - minValue)) * graphHeight;
+      
+      if (index === 0) {
+        path += `M ${x} ${y}`;
+      } else {
+        path += ` L ${x} ${y}`;
       }
-    ],
-    legend: ["Growth"]
+    });
+    
+    // Create x-axis labels
+    const xLabels = [];
+    for (let i = 0; i < growthData.length; i += Math.max(1, Math.floor(growthData.length / 5))) {
+      const point = growthData[i];
+      const x = paddingLeft + (point.x / growthData[growthData.length - 1].x) * graphWidth;
+      xLabels.push(
+        <SvgText
+          key={`x-${i}`}
+          x={x}
+          y={chartHeight - 10}
+          fontSize="10"
+          fill="#aaa"
+          textAnchor="middle"
+        >
+          {`${point.x}yr`}
+        </SvgText>
+      );
+    }
+    
+    // Create y-axis labels
+    const yLabels = [];
+    const numYLabels = 5;
+    for (let i = 0; i <= numYLabels; i++) {
+      const value = minValue + (i / numYLabels) * (maxValue - minValue);
+      const y = chartHeight - paddingBottom - (i / numYLabels) * graphHeight;
+      yLabels.push(
+        <SvgText
+          key={`y-${i}`}
+          x={paddingLeft - 5}
+          y={y + 4}
+          fontSize="10"
+          fill="#aaa"
+          textAnchor="end"
+        >
+          {value >= 1000 ? `${Math.round(value / 1000)}k` : Math.round(value)}
+        </SvgText>
+      );
+    }
+    
+    return (
+      <Svg width={chartWidth} height={chartHeight}>
+        {/* X-axis */}
+        <Line
+          x1={paddingLeft}
+          y1={chartHeight - paddingBottom}
+          x2={chartWidth}
+          y2={chartHeight - paddingBottom}
+          stroke="#444"
+          strokeWidth="1"
+        />
+        
+        {/* Y-axis */}
+        <Line
+          x1={paddingLeft}
+          y1={0}
+          x2={paddingLeft}
+          y2={chartHeight - paddingBottom}
+          stroke="#444"
+          strokeWidth="1"
+        />
+        
+        {/* Grid lines */}
+        {Array.from({ length: numYLabels + 1 }).map((_, i) => (
+          <Line
+            key={`grid-${i}`}
+            x1={paddingLeft}
+            y1={chartHeight - paddingBottom - (i / numYLabels) * graphHeight}
+            x2={chartWidth}
+            y2={chartHeight - paddingBottom - (i / numYLabels) * graphHeight}
+            stroke="#333"
+            strokeWidth="1"
+          />
+        ))}
+        
+        {/* Line chart */}
+        <Path
+          d={path}
+          fill="none"
+          stroke="#6200ee"
+          strokeWidth="2"
+        />
+        
+        {/* X-axis labels */}
+        {xLabels}
+        
+        {/* Y-axis labels */}
+        {yLabels}
+      </Svg>
+    );
   };
   
   return (
@@ -152,36 +258,7 @@ export default function CompoundingCalculator() {
           
           <View style={styles.chartContainer}>
             <Text style={styles.chartTitle}>Growth Chart</Text>
-            {growthData.length > 1 && (
-              <LineChart
-                data={chartData}
-                width={Dimensions.get("window").width - 64}
-                height={220}
-                chartConfig={{
-                  backgroundColor: "#1E1E1E",
-                  backgroundGradientFrom: "#1E1E1E",
-                  backgroundGradientTo: "#1E1E1E",
-                  decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-                  style: {
-                    borderRadius: 16
-                  },
-                  propsForDots: {
-                    r: "4",
-                    strokeWidth: "2",
-                    stroke: "#6200ee"
-                  }
-                }}
-                bezier
-                style={{
-                  marginVertical: 8,
-                  borderRadius: 16
-                }}
-                yAxisLabel={accountCurrency === 'USD' ? '$' : ''}
-                yAxisSuffix=""
-              />
-            )}
+            {renderChart()}
           </View>
         </View>
       </CalculatorCard>
@@ -229,11 +306,13 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     marginTop: 16,
+    alignItems: 'center',
   },
   chartTitle: {
     fontSize: 16,
     color: '#fff',
     marginBottom: 8,
     fontWeight: 'bold',
+    alignSelf: 'flex-start',
   },
 });
