@@ -29,35 +29,84 @@ export function formatCurrency(amount: number, currency = 'USD', decimals = 2): 
   return `${symbol}${formatNumber(amount, actualDecimals)}`;
 }
 
-// Calculate compound interest
+// Calculate compound interest with enhanced features
 export function calculateCompoundInterest(
   principal: number,
   rate: number,
   frequency: number,
-  years: number
-): { endBalance: number; totalEarnings: number; growthData: Array<{ x: number; y: number }> } {
-  const periods = frequency * years;
-  const ratePerPeriod = rate / 100 / frequency;
+  years: number,
+  additionalContributions: number = 0,
+  contributionFrequency: number = frequency,
+  withdrawals: number = 0,
+  withdrawalFrequency: number = frequency,
+  taxRate: number = 0,
+  compoundingFrequency: number = frequency
+): { 
+  endBalance: number; 
+  totalEarnings: number; 
+  growthData: Array<{ x: number; y: number }>;
+  totalContributions?: number;
+  totalWithdrawals?: number;
+  totalTaxesPaid?: number;
+  effectiveAnnualRate?: number;
+} {
+  const periods = Math.max(1, Math.floor(frequency * years));
+  const ratePerPeriod = rate / 100 / compoundingFrequency;
   
   let balance = principal;
+  let totalContributions = principal;
+  let totalWithdrawals = 0;
+  let totalTaxesPaid = 0;
+  
   const growthData = [{ x: 0, y: principal }];
   
   for (let i = 1; i <= periods; i++) {
-    balance = balance * (1 + ratePerPeriod);
+    // Calculate interest for this period
+    const interestEarned = balance * ratePerPeriod;
     
-    // Add data point for each year
-    if (i % frequency === 0) {
+    // Apply tax on interest if applicable
+    const taxAmount = interestEarned * (taxRate / 100);
+    totalTaxesPaid += taxAmount;
+    
+    // Add interest (minus tax) to balance
+    balance += interestEarned - taxAmount;
+    
+    // Add additional contribution if it's time
+    if (additionalContributions > 0 && i % Math.floor(frequency / contributionFrequency) === 0) {
+      balance += additionalContributions;
+      totalContributions += additionalContributions;
+    }
+    
+    // Subtract withdrawal if it's time
+    if (withdrawals > 0 && i % Math.floor(frequency / withdrawalFrequency) === 0) {
+      balance = Math.max(0, balance - withdrawals);
+      totalWithdrawals += withdrawals;
+    }
+    
+    // Add data point for each year or at the end
+    if (i % frequency === 0 || i === periods) {
       growthData.push({
         x: i / frequency,
-        y: balance,
+        y: balance
       });
     }
   }
   
   const endBalance = balance;
-  const totalEarnings = endBalance - principal;
+  const totalEarnings = endBalance - totalContributions + totalWithdrawals;
   
-  return { endBalance, totalEarnings, growthData };
+  // Calculate effective annual rate
+  const effectiveAnnualRate = (Math.pow(1 + ratePerPeriod, compoundingFrequency) - 1) * 100;
+  
+  return { 
+    endBalance, 
+    totalEarnings, 
+    growthData,
+    totalContributions,
+    totalWithdrawals,
+    totalTaxesPaid,
+    effectiveAnnualRate
+  };
 }
 
 // Calculate Fibonacci levels
