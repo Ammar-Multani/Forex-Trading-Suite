@@ -83,6 +83,10 @@ export default function Home() {
   const navigateToSettings = () => {
     router.push('/settings');
   };
+  
+  const navigateToExchangeRates = () => {
+    router.push('/exchange-rates');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -92,9 +96,14 @@ export default function Home() {
           <Text style={styles.title}>Forex Calculator Suite</Text>
           <Text style={styles.subtitle}>Professional trading tools</Text>
         </View>
-        <TouchableOpacity onPress={navigateToSettings} style={styles.settingsButton}>
-          <Ionicons name="settings-outline" size={24} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity onPress={navigateToExchangeRates} style={styles.headerButton}>
+            <Ionicons name="trending-up-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={navigateToSettings} style={styles.headerButton}>
+            <Ionicons name="settings-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView 
@@ -146,6 +155,13 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flex: 1,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+  },
+  headerButton: {
+    padding: 4,
+    marginLeft: 16,
   },
   settingsButton: {
     padding: 4,

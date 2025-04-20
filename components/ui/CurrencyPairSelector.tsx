@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import DropDownPicker from 'react-native-dropdown-picker';
+import { useExchangeRates } from '../../contexts/ExchangeRateContext';
+import { CURRENCY_PAIRS } from '../../constants/currencies';
 
 interface CurrencyPairSelectorProps {
   value: string;
@@ -10,18 +12,22 @@ interface CurrencyPairSelectorProps {
 
 export default function CurrencyPairSelector({ value, onChange }: CurrencyPairSelectorProps) {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState([
-    { label: 'EUR/USD', value: 'EUR/USD' },
-    { label: 'GBP/USD', value: 'GBP/USD' },
-    { label: 'USD/JPY', value: 'USD/JPY' },
-    { label: 'USD/CHF', value: 'USD/CHF' },
-    { label: 'AUD/USD', value: 'AUD/USD' },
-    { label: 'USD/CAD', value: 'USD/CAD' },
-    { label: 'NZD/USD', value: 'NZD/USD' },
-    { label: 'EUR/GBP', value: 'EUR/GBP' },
-    { label: 'EUR/JPY', value: 'EUR/JPY' },
-    { label: 'GBP/JPY', value: 'GBP/JPY' },
-  ]);
+  const [items, setItems] = useState(
+    CURRENCY_PAIRS.map(pair => ({ label: pair, value: pair }))
+  );
+  
+  const { forexPairRates } = useExchangeRates();
+  
+  useEffect(() => {
+    if (Object.keys(forexPairRates).length > 0) {
+      const updatedItems = CURRENCY_PAIRS.map(pair => {
+        const rate = forexPairRates[pair];
+        const label = rate ? `${pair} (${rate.toFixed(4)})` : pair;
+        return { label, value: pair };
+      });
+      setItems(updatedItems);
+    }
+  }, [forexPairRates]);
 
   return (
     <View style={styles.container}>

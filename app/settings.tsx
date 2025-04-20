@@ -88,6 +88,8 @@ export default function SettingsScreen() {
 
         {renderSectionHeader('FOREX CALCULATOR SUITE')}
         <View style={styles.settingSection}>
+          {renderSettingItem('trending-up-outline', 'Exchange Rates', () => handleNavigation('/exchange-rates'))}
+          <Divider style={styles.divider} />
           {renderSettingItem('book-outline', 'Manual', () => handleNavigation('/manual'))}
           <Divider style={styles.divider} />
           {renderSettingItem('share-social-outline', 'Share this app', handleShare)}
