@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import { Text, Divider, ActivityIndicator } from 'react-native-paper';
+import { Text, Divider, ActivityIndicator, Card, Chip } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,7 @@ export default function ExchangeRatesScreen() {
   const router = useRouter();
   const { forexPairRates, isLoading, lastUpdated, refreshRates } = useExchangeRates();
   const [refreshing, setRefreshing] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>(['EURUSD', 'GBPUSD', 'USDJPY']);
   const { isDark } = useTheme();
 
   const onRefresh = async () => {
@@ -23,6 +24,26 @@ export default function ExchangeRatesScreen() {
   const formatDate = (date: Date | null) => {
     if (!date) return 'Never';
     return date.toLocaleString();
+  };
+
+  const toggleFavorite = (pair: string) => {
+    if (favorites.includes(pair)) {
+      setFavorites(favorites.filter(p => p !== pair));
+    } else {
+      setFavorites([...favorites, pair]);
+    }
+  };
+
+  const getRateChangeIndicator = (pair: string) => {
+    // This is a placeholder - in a real app, you would compare with previous rates
+    // For now, we'll use a random value for demonstration
+    const change = Math.random() > 0.5 ? 1 : -1;
+    return {
+      direction: change > 0 ? 'up' : 'down',
+      color: change > 0 ? '#4CAF50' : '#F44336',
+      icon: change > 0 ? 'arrow-up' : 'arrow-down',
+      value: (Math.random() * 0.5).toFixed(4)
+    };
   };
 
   return (
@@ -63,26 +84,89 @@ export default function ExchangeRatesScreen() {
           </View>
         )}
 
+        {favorites.length > 0 && (
+          <View style={styles.favoritesSection}>
+            <Text variant="titleMedium" style={{ marginBottom: 12, color: isDark ? '#fff' : '#000' }}>
+              Favorites
+            </Text>
+            <View style={styles.favoriteCardsContainer}>
+              {favorites.map(pair => {
+                const change = getRateChangeIndicator(pair);
+                return (
+                  <Card 
+                    key={pair} 
+                    style={[
+                      styles.favoriteCard, 
+                      { backgroundColor: isDark ? '#1E1E1E' : '#fff' }
+                    ]}
+                  >
+                    <Card.Content>
+                      <View style={styles.favoriteCardHeader}>
+                        <Text variant="titleMedium" style={{ color: isDark ? '#fff' : '#000' }}>{pair}</Text>
+                        <TouchableOpacity onPress={() => toggleFavorite(pair)}>
+                          <Ionicons name="star" size={20} color="#FFC107" />
+                        </TouchableOpacity>
+                      </View>
+                      <Text variant="displaySmall" style={{ color: isDark ? '#fff' : '#000', marginVertical: 8 }}>
+                        {forexPairRates[pair] ? forexPairRates[pair].toFixed(4) : '—'}
+                      </Text>
+                      <View style={styles.changeContainer}>
+                        <Ionicons name={change.icon} size={16} color={change.color} />
+                        <Text style={{ color: change.color, marginLeft: 4 }}>{change.value}</Text>
+                      </View>
+                    </Card.Content>
+                  </Card>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
         <View style={[styles.ratesContainer, { backgroundColor: isDark ? '#1E1E1E' : '#fff' }]}>
           <View style={[styles.rateHeader, { backgroundColor: isDark ? '#2A2A2A' : '#f0f0f0' }]}>
             <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>Currency Pair</Text>
             <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>Rate</Text>
+            <Text variant="bodyMedium" style={{ fontWeight: 'bold', width: 40 }}>Fav</Text>
           </View>
           <Divider style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
           
-          {CURRENCY_PAIRS.map((pair) => (
-            <View key={pair}>
-              <View style={styles.rateRow}>
-                <Text variant="bodyMedium">{pair}</Text>
-                <Text variant="bodyMedium" style={{ color: '#6200ee', fontWeight: 'bold' }}>
-                  {forexPairRates[pair] 
-                    ? forexPairRates[pair].toFixed(4) 
-                    : 'Loading...'}
-                </Text>
+          {CURRENCY_PAIRS.map((pair) => {
+            const formattedPair = pair.replace('/', '');
+            const change = getRateChangeIndicator(formattedPair);
+            return (
+              <View key={formattedPair}>
+                <View style={styles.rateRow}>
+                  <Text variant="bodyMedium">{formattedPair}</Text>
+                  <View style={styles.rateValueContainer}>
+                    <Text variant="bodyMedium" style={{ color: '#6200ee', fontWeight: 'bold' }}>
+                      {forexPairRates[formattedPair] 
+                        ? forexPairRates[formattedPair].toFixed(4) 
+                        : 'Loading...'}
+                    </Text>
+                    <Ionicons name={change.icon} size={12} color={change.color} style={{ marginLeft: 4 }} />
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.favoriteButton} 
+                    onPress={() => toggleFavorite(formattedPair)}
+                  >
+                    <Ionicons 
+                      name={favorites.includes(formattedPair) ? "star" : "star-outline"} 
+                      size={20} 
+                      color={favorites.includes(formattedPair) ? "#FFC107" : isDark ? '#aaa' : '#666'} 
+                    />
+                  </TouchableOpacity>
+                </View>
+                <Divider style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
               </View>
-              <Divider style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
-            </View>
-          ))}
+            );
+          })}
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Chip icon="information" style={{ marginBottom: 8 }}>Pull down to refresh rates</Chip>
+          <Text variant="bodySmall" style={{ color: isDark ? '#aaa' : '#666', textAlign: 'center' }}>
+            Exchange rates are updated every 15 minutes. Tap the star icon to add or remove from favorites.
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -106,12 +190,6 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 4,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-  },
   scrollView: {
     flex: 1,
   },
@@ -125,10 +203,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  lastUpdatedText: {
-    fontSize: 14,
-    color: '#aaa',
-  },
   rotating: {
     transform: [{ rotate: '45deg' }],
   },
@@ -137,14 +211,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
-  loadingText: {
-    marginTop: 10,
-    color: '#aaa',
+  favoritesSection: {
+    marginBottom: 24,
+  },
+  favoriteCardsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  favoriteCard: {
+    width: '48%',
+    marginBottom: 12,
+    elevation: 2,
+  },
+  favoriteCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  changeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   ratesContainer: {
     backgroundColor: '#1E1E1E',
     borderRadius: 12,
     overflow: 'hidden',
+    marginBottom: 24,
   },
   rateHeader: {
     flexDirection: 'row',
@@ -153,28 +246,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: '#2A2A2A',
   },
-  pairHeaderText: {
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  rateHeaderText: {
-    fontWeight: 'bold',
-    color: '#fff',
-  },
   rateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
-  pairText: {
-    color: '#fff',
+  rateValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  rateText: {
-    color: '#6200ee',
-    fontWeight: 'bold',
+  favoriteButton: {
+    width: 40,
+    alignItems: 'center',
   },
   divider: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  infoContainer: {
+    alignItems: 'center',
+    marginTop: 8,
   },
 });
