@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { TextInput, Button, Text, Divider, RadioButton } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { TextInput, Text, Divider, IconButton, SegmentedButtons } from 'react-native-paper';
+import { Ionicons } from '@expo/vector-icons';
 import { calculateFibonacciLevels } from '../../utils/calculators';
 import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
@@ -8,8 +9,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 
 export default function FibonacciCalculator() {
   // State for inputs
-  const [highPrice, setHighPrice] = useState('1.2000');
-  const [lowPrice, setLowPrice] = useState('1.1800');
+  const [highPrice, setHighPrice] = useState('21');
+  const [lowPrice, setLowPrice] = useState('15');
   const [trend, setTrend] = useState('uptrend');
   
   // State for results
@@ -41,7 +42,14 @@ export default function FibonacciCalculator() {
   };
   
   const formatPrice = (price: number) => {
-    return price.toFixed(5);
+    // Format with 5 decimal places, but remove trailing zeros
+    return price.toFixed(5).replace(/\.?0+$/, '');
+  };
+  
+  const copyToClipboard = (text: string) => {
+    // In a real app, you would use Clipboard.setString(text)
+    console.log('Copied to clipboard:', text);
+    // Show a toast or some feedback
   };
   
   return (
@@ -49,7 +57,7 @@ export default function FibonacciCalculator() {
       <CalculatorCard title="Fibonacci Calculator">
         <View style={styles.inputsContainer}>
           <TextInput
-            label="High Price"
+            label="High price"
             value={highPrice}
             onChangeText={setHighPrice}
             keyboardType="numeric"
@@ -67,7 +75,7 @@ export default function FibonacciCalculator() {
           />
           
           <TextInput
-            label="Low Price"
+            label="Low price"
             value={lowPrice}
             onChangeText={setLowPrice}
             keyboardType="numeric"
@@ -84,40 +92,79 @@ export default function FibonacciCalculator() {
             }}
           />
           
-          <Text variant="bodySmall" style={{ marginBottom: 8 }}>Trend Direction</Text>
-          <RadioButton.Group onValueChange={value => setTrend(value)} value={trend}>
-            <View style={styles.radioContainer}>
-              <View style={styles.radioButton}>
-                <RadioButton value="uptrend" color="#6200ee" />
-                <Text variant="bodyMedium">Uptrend</Text>
-              </View>
-              <View style={styles.radioButton}>
-                <RadioButton value="downtrend" color="#6200ee" />
-                <Text variant="bodyMedium">Downtrend</Text>
-              </View>
-            </View>
-          </RadioButton.Group>
+          <Text variant="bodySmall" style={{ marginBottom: 8 }}>Trend</Text>
+          <SegmentedButtons
+            value={trend}
+            onValueChange={setTrend}
+            buttons={[
+              {
+                value: 'uptrend',
+                label: 'Up',
+                style: { 
+                  backgroundColor: trend === 'uptrend' 
+                    ? '#6200ee' 
+                    : isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'
+                }
+              },
+              {
+                value: 'downtrend',
+                label: 'Short',
+                style: { 
+                  backgroundColor: trend === 'downtrend' 
+                    ? '#6200ee' 
+                    : isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'
+                }
+              },
+            ]}
+            style={styles.segmentedButtons}
+          />
         </View>
         
         <Divider style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
         
         <View style={styles.resultsContainer}>
-          <Text variant="titleMedium" style={{ marginBottom: 8 }}>Fibonacci Retracement Levels</Text>
+          <View style={styles.resultsHeader}>
+            <Text variant="titleMedium" style={{ color: isDark ? '#fff' : '#000' }}>Results</Text>
+            <IconButton
+              icon="refresh"
+              size={20}
+              onPress={calculateResults}
+              iconColor={isDark ? '#fff' : '#000'}
+            />
+          </View>
+          
+          <Text variant="titleSmall" style={[styles.sectionTitle, { color: isDark ? '#aaa' : '#666' }]}>Retracement</Text>
+          
           <ScrollView style={styles.levelsContainer}>
-            {retracements.map((level, index) => (
-              <View key={`ret-${index}`} style={[styles.levelRow, { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
-                <Text variant="bodyMedium" style={styles.levelPercent}>{level.level}%</Text>
-                <Text variant="bodyMedium">{formatPrice(level.price)}</Text>
+            {retracements.filter(level => level.level > 0 && level.level < 100).map((level, index) => (
+              <View key={`ret-${index}`} style={styles.levelRow}>
+                <Text variant="bodyLarge" style={styles.levelPercent}>{level.level.toFixed(1)}%</Text>
+                <View style={styles.priceContainer}>
+                  <Text variant="bodyLarge" style={{ color: isDark ? '#fff' : '#000' }}>
+                    {formatPrice(level.price)}
+                  </Text>
+                  <TouchableOpacity onPress={() => copyToClipboard(level.price.toString())}>
+                    <Ionicons name="copy-outline" size={18} color={isDark ? '#aaa' : '#666'} />
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
           </ScrollView>
           
-          <Text variant="titleMedium" style={{ marginTop: 16, marginBottom: 8 }}>Fibonacci Extension Levels</Text>
+          <Text variant="titleSmall" style={[styles.sectionTitle, { color: isDark ? '#aaa' : '#666', marginTop: 16 }]}>Extension</Text>
+          
           <ScrollView style={styles.levelsContainer}>
             {extensions.map((level, index) => (
-              <View key={`ext-${index}`} style={[styles.levelRow, { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
-                <Text variant="bodyMedium" style={styles.levelPercent}>{level.level}%</Text>
-                <Text variant="bodyMedium">{formatPrice(level.price)}</Text>
+              <View key={`ext-${index}`} style={styles.levelRow}>
+                <Text variant="bodyLarge" style={styles.levelPercent}>{level.level.toFixed(1)}%</Text>
+                <View style={styles.priceContainer}>
+                  <Text variant="bodyLarge" style={{ color: isDark ? '#fff' : '#000' }}>
+                    {formatPrice(level.price)}
+                  </Text>
+                  <TouchableOpacity onPress={() => copyToClipboard(level.price.toString())}>
+                    <Ionicons name="copy-outline" size={18} color={isDark ? '#aaa' : '#666'} />
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
           </ScrollView>
@@ -137,14 +184,8 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 16,
   },
-  radioContainer: {
-    flexDirection: 'row',
+  segmentedButtons: {
     marginBottom: 16,
-  },
-  radioButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 24,
   },
   divider: {
     marginVertical: 16,
@@ -152,17 +193,34 @@ const styles = StyleSheet.create({
   resultsContainer: {
     marginTop: 8,
   },
+  resultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    marginBottom: 12,
+    textAlign: 'center',
+  },
   levelsContainer: {
     maxHeight: 200,
   },
   levelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    alignItems: 'center',
+    paddingVertical: 12,
     borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   levelPercent: {
     color: '#6200ee',
     fontWeight: 'bold',
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });

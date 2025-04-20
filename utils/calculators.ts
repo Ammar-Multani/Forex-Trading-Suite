@@ -131,7 +131,7 @@ export function calculateFibonacciLevels(
   }));
   
   // Fibonacci extension levels
-  const extensionLevels = [1.272, 1.618, 2.618];
+  const extensionLevels = [1.618, 2.0, 2.618];
   const extensions = extensionLevels.map(level => ({
     level: level * 100,
     price: isUptrend
