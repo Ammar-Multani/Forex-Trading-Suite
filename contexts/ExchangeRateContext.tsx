@@ -1,98 +1,134 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { fetchExchangeRate, fetchAllExchangeRates, getForexPairRates, loadCachedRates } from '../utils/api';
-import { CURRENCY_PAIRS, formatPairForApi, parseCurrencyPair } from '../constants/currencies';
+import { Alert } from 'react-native';
+import { fetchExchangeRate, fetchAllExchangeRates, fetchForexPairRates, getFallbackRate, getFallbackForexPairRates } from '../utils/api';
 
 interface ExchangeRateContextType {
-  isLoading: boolean;
-  error: string | null;
-  forexPairRates: Record<string, number>;
   getExchangeRate: (fromCurrency: string, toCurrency: string) => Promise<number>;
+  rates: Record<string, Record<string, number>>;
+  forexPairRates: Record<string, number>;
+  isLoading: boolean;
+  lastUpdated: Date | null;
   refreshRates: () => Promise<void>;
 }
 
-const ExchangeRateContext = createContext<ExchangeRateContextType | undefined>(undefined);
+const ExchangeRateContext = createContext<ExchangeRateContextType>({
+  getExchangeRate: async () => 1,
+  rates: {},
+  forexPairRates: {},
+  isLoading: false,
+  lastUpdated: null,
+  refreshRates: async () => {},
+});
 
-export const ExchangeRateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export const useExchangeRates = () => useContext(ExchangeRateContext);
+
+interface ExchangeRateProviderProps {
+  children: ReactNode;
+}
+
+export const ExchangeRateProvider: React.FC<ExchangeRateProviderProps> = ({ children }) => {
+  const [rates, setRates] = useState<Record<string, Record<string, number>>>({});
   const [forexPairRates, setForexPairRates] = useState<Record<string, number>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // Load cached rates and fetch fresh rates on app start
-  useEffect(() => {
-    const initializeRates = async () => {
-      try {
-        // Load cached rates first
-        await loadCachedRates();
-        
-        // Then fetch fresh rates
-        await refreshRates();
-      } catch (err) {
-        console.error('Error initializing exchange rates:', err);
-        setError('Failed to load exchange rates. Please check your internet connection.');
-      } finally {
-        setIsLoading(false);
+  // Function to get exchange rate between two currencies
+  const getExchangeRate = async (fromCurrency: string, toCurrency: string): Promise<number> => {
+    try {
+      // If same currency, return 1
+      if (fromCurrency === toCurrency) {
+        return 1;
       }
-    };
 
-    initializeRates();
-  }, []);
+      // Try to get from cached rates first
+      if (rates[fromCurrency] && rates[fromCurrency][toCurrency]) {
+        return rates[fromCurrency][toCurrency];
+      }
+
+      // Fetch from API
+      const rate = await fetchExchangeRate(fromCurrency, toCurrency);
+      
+      // Update rates cache
+      setRates(prevRates => ({
+        ...prevRates,
+        [fromCurrency]: {
+          ...(prevRates[fromCurrency] || {}),
+          [toCurrency]: rate
+        }
+      }));
+      
+      return rate;
+    } catch (error) {
+      console.error('Error in getExchangeRate:', error);
+      
+      // Use fallback rate
+      return getFallbackRate(fromCurrency, toCurrency);
+    }
+  };
 
   // Function to refresh all rates
-  const refreshRates = async (): Promise<void> => {
+  const refreshRates = async () => {
+    setIsLoading(true);
+    
     try {
-      setIsLoading(true);
-      setError(null);
+      // Fetch common currency rates
+      const baseCurrencies = ['USD', 'EUR', 'GBP'];
+      const newRates: Record<string, Record<string, number>> = {};
       
-      const rates = await getForexPairRates();
+      for (const base of baseCurrencies) {
+        try {
+          const currencyRates = await fetchAllExchangeRates(base);
+          newRates[base] = currencyRates;
+        } catch (error) {
+          console.error(`Error fetching rates for ${base}:`, error);
+        }
+      }
       
-      // Format rates for display (e.g., "EURUSD" -> "EUR/USD")
-      const formattedRates: Record<string, number> = {};
+      // Fetch forex pair rates
+      let pairRates: Record<string, number> = {};
+      try {
+        pairRates = await fetchForexPairRates();
+      } catch (error) {
+        console.error('Error fetching forex pair rates:', error);
+        pairRates = getFallbackForexPairRates();
+      }
       
-      Object.entries(rates).forEach(([pair, rate]) => {
-        const formattedPair = `${pair.substring(0, 3)}/${pair.substring(3, 6)}`;
-        formattedRates[formattedPair] = rate;
-      });
-      
-      setForexPairRates(formattedRates);
-    } catch (err: any) {
-      console.error('Error refreshing rates:', err);
-      setError(err.message || 'Failed to refresh exchange rates');
+      setRates(newRates);
+      setForexPairRates(pairRates);
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Error refreshing rates:', error);
+      Alert.alert(
+        'Error',
+        'Failed to update exchange rates. Using cached or fallback rates.'
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Function to get a specific exchange rate
-  const getExchangeRate = async (fromCurrency: string, toCurrency: string): Promise<number> => {
-    try {
-      return await fetchExchangeRate(fromCurrency, toCurrency);
-    } catch (err: any) {
-      console.error('Error getting exchange rate:', err);
-      setError(err.message || 'Failed to get exchange rate');
-      throw err;
-    }
-  };
-
-  const value = {
-    isLoading,
-    error,
-    forexPairRates,
-    getExchangeRate,
-    refreshRates,
-  };
+  // Initial fetch of rates
+  useEffect(() => {
+    refreshRates();
+    
+    // Set up periodic refresh (every 15 minutes)
+    const intervalId = setInterval(refreshRates, 15 * 60 * 1000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
 
   return (
-    <ExchangeRateContext.Provider value={value}>
+    <ExchangeRateContext.Provider
+      value={{
+        getExchangeRate,
+        rates,
+        forexPairRates,
+        isLoading,
+        lastUpdated,
+        refreshRates,
+      }}
+    >
       {children}
     </ExchangeRateContext.Provider>
   );
-};
-
-// Custom hook to use the exchange rate context
-export const useExchangeRates = (): ExchangeRateContextType => {
-  const context = useContext(ExchangeRateContext);
-  if (context === undefined) {
-    throw new Error('useExchangeRates must be used within an ExchangeRateProvider');
-  }
-  return context;
 };

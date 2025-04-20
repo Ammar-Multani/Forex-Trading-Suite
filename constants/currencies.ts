@@ -1,46 +1,50 @@
-export interface Currency {
-  code: string;
-  name: string;
-  symbol: string;
-}
-
-export const CURRENCIES: Currency[] = [
-  { code: 'USD', name: 'US Dollar', symbol: '$' },
-  { code: 'EUR', name: 'Euro', symbol: '€' },
-  { code: 'GBP', name: 'British Pound', symbol: '£' },
-  { code: 'JPY', name: 'Japanese Yen', symbol: '¥' },
-  { code: 'AUD', name: 'Australian Dollar', symbol: 'A$' },
-  { code: 'CAD', name: 'Canadian Dollar', symbol: 'C$' },
-  { code: 'CHF', name: 'Swiss Franc', symbol: 'Fr' },
-  { code: 'NZD', name: 'New Zealand Dollar', symbol: 'NZ$' },
+// List of currencies
+export const CURRENCIES = [
+  'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD', 'INR'
 ];
 
+// List of common forex pairs
 export const CURRENCY_PAIRS = [
-  'EUR/USD',
-  'GBP/USD',
-  'USD/JPY',
-  'USD/CHF',
-  'AUD/USD',
-  'USD/CAD',
-  'NZD/USD',
-  'EUR/GBP',
-  'EUR/JPY',
-  'GBP/JPY',
+  'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 
+  'USDCHF', 'NZDUSD', 'EURGBP', 'EURJPY', 'GBPJPY'
 ];
 
-// Helper function to get currency symbol by code
-export const getCurrencySymbol = (code: string): string => {
-  const currency = CURRENCIES.find(c => c.code === code);
-  return currency ? currency.symbol : '';
+// Currency symbols
+export const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+  AUD: 'A$',
+  CAD: 'C$',
+  CHF: 'Fr',
+  NZD: 'NZ$',
+  INR: '₹'
 };
 
-// Helper function to format currency pair for API
-export const formatPairForApi = (pair: string): string => {
-  return pair.replace('/', '');
+// Currency decimal places
+export const CURRENCY_DECIMALS: Record<string, number> = {
+  USD: 2,
+  EUR: 2,
+  GBP: 2,
+  JPY: 0,
+  AUD: 2,
+  CAD: 2,
+  CHF: 2,
+  NZD: 2,
+  INR: 2
 };
 
-// Helper function to parse currency pair
-export const parseCurrencyPair = (pair: string): { base: string; quote: string } => {
-  const [base, quote] = pair.split('/');
-  return { base, quote };
+// Pip values for different currency pairs
+export const PIP_VALUES: Record<string, number> = {
+  EURUSD: 0.0001,
+  GBPUSD: 0.0001,
+  USDJPY: 0.01,
+  AUDUSD: 0.0001,
+  USDCAD: 0.0001,
+  USDCHF: 0.0001,
+  NZDUSD: 0.0001,
+  EURGBP: 0.0001,
+  EURJPY: 0.01,
+  GBPJPY: 0.01
 };

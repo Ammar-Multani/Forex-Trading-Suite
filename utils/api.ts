@@ -1,8 +1,5 @@
-import NetInfo from '@react-native-community/netinfo';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// API key - in a real app, this should be in an environment variable
-const API_KEY = 'YOUR_TRADERMADE_API_KEY'; // Replace with your actual API key
+import { NetInfo } from '@react-native-community/netinfo';
+import env from "../config/env";
 
 // Cache to store recent exchange rates with timestamp
 const rateCache: Record<string, { rate: number; timestamp: number }> = {};
@@ -13,29 +10,6 @@ const isCacheValid = (key: string): boolean => {
   if (!rateCache[key]) return false;
   const now = Date.now();
   return now - rateCache[key].timestamp < CACHE_EXPIRY;
-};
-
-// Load cached rates from AsyncStorage on app start
-export const loadCachedRates = async (): Promise<void> => {
-  try {
-    const cachedRatesJson = await AsyncStorage.getItem('exchangeRateCache');
-    if (cachedRatesJson) {
-      const cachedRates = JSON.parse(cachedRatesJson);
-      Object.assign(rateCache, cachedRates);
-      console.log('Loaded cached exchange rates from storage');
-    }
-  } catch (error) {
-    console.error('Error loading cached rates:', error);
-  }
-};
-
-// Save cached rates to AsyncStorage
-const saveCachedRates = async (): Promise<void> => {
-  try {
-    await AsyncStorage.setItem('exchangeRateCache', JSON.stringify(rateCache));
-  } catch (error) {
-    console.error('Error saving cached rates:', error);
-  }
 };
 
 // Fetch exchange rate from API
@@ -65,7 +39,7 @@ export const fetchExchangeRate = async (
     console.log(`Calling TraderMade API for ${fromCurrency}/${toCurrency}`);
 
     const response = await fetch(
-      `https://marketdata.tradermade.com/api/v1/live?api_key=${API_KEY}&currency=${fromCurrency}${toCurrency}`
+      `https://marketdata.tradermade.com/api/v1/live?api_key=${env.traderMadeApiKey}&currency=${fromCurrency}${toCurrency}`
     );
 
     if (!response.ok) {
@@ -97,21 +71,10 @@ export const fetchExchangeRate = async (
 
     // Cache the result
     rateCache[cacheKey] = { rate, timestamp: Date.now() };
-    
-    // Save to AsyncStorage
-    saveCachedRates();
 
     return rate;
   } catch (error) {
     console.error("Error fetching exchange rate:", error);
-    
-    // Try to use the last cached value even if expired
-    const cacheKey = `${fromCurrency}-${toCurrency}`;
-    if (rateCache[cacheKey]) {
-      console.log("Using expired cached rate as fallback");
-      return rateCache[cacheKey].rate;
-    }
-    
     throw error;
   }
 };
@@ -139,6 +102,7 @@ export const fetchAllExchangeRates = async (
       "CAD",
       "CHF",
       "NZD",
+      "INR",
     ];
 
     // Remove base currency from the list if it's there
@@ -152,7 +116,7 @@ export const fetchAllExchangeRates = async (
       .join(",");
 
     const response = await fetch(
-      `https://marketdata.tradermade.com/api/v1/live?api_key=${API_KEY}&currency=${pairs}`
+      `https://marketdata.tradermade.com/api/v1/live?api_key=${env.traderMadeApiKey}&currency=${pairs}`
     );
 
     if (!response.ok) {
@@ -194,9 +158,6 @@ export const fetchAllExchangeRates = async (
       throw new Error("No valid exchange rates found in the response");
     }
 
-    // Save to AsyncStorage
-    saveCachedRates();
-
     console.log(
       `Successfully fetched ${
         Object.keys(rates).length
@@ -209,31 +170,31 @@ export const fetchAllExchangeRates = async (
   }
 };
 
-// Get the latest exchange rates for common forex pairs
-export const getForexPairRates = async (): Promise<Record<string, number>> => {
+// Fetch exchange rates for common forex pairs
+export const fetchForexPairRates = async (): Promise<Record<string, number>> => {
   try {
-    // Common forex pairs
-    const pairs = [
-      "EURUSD",
-      "GBPUSD",
-      "USDJPY",
-      "USDCHF",
-      "AUDUSD",
-      "USDCAD",
-      "NZDUSD",
-      "EURGBP",
-      "EURJPY",
-      "GBPJPY"
-    ];
-
     // Check network connectivity
     const netInfoState = await NetInfo.fetch();
     if (!netInfoState.isConnected) {
       throw new Error("No internet connection. Real-time rates unavailable.");
     }
 
+    // Common forex pairs
+    const forexPairs = [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "AUDUSD",
+      "USDCAD",
+      "USDCHF",
+      "NZDUSD",
+      "EURGBP",
+      "EURJPY",
+      "GBPJPY",
+    ];
+
     const response = await fetch(
-      `https://marketdata.tradermade.com/api/v1/live?api_key=${API_KEY}&currency=${pairs.join(',')}`
+      `https://marketdata.tradermade.com/api/v1/live?api_key=${env.traderMadeApiKey}&currency=${forexPairs.join(",")}`
     );
 
     if (!response.ok) {
@@ -254,31 +215,98 @@ export const getForexPairRates = async (): Promise<Record<string, number>> => {
 
     data.quotes.forEach((quote: any) => {
       if (!quote || !quote.currency) return;
-      
+
       const pair = quote.currency;
       const rate = quote.mid || quote.price;
 
       if (pair && rate) {
         rates[pair] = parseFloat(rate);
-        
-        // Also cache the rate
-        const fromCurrency = pair.substring(0, 3);
-        const toCurrency = pair.substring(3, 6);
-        const cacheKey = `${fromCurrency}-${toCurrency}`;
-        
-        rateCache[cacheKey] = {
+
+        // Also cache individual rates
+        rateCache[pair] = {
           rate: parseFloat(rate),
           timestamp: Date.now(),
         };
       }
     });
 
-    // Save to AsyncStorage
-    saveCachedRates();
+    if (Object.keys(rates).length === 0) {
+      throw new Error("No valid forex pair rates found in the response");
+    }
 
+    console.log(
+      `Successfully fetched ${Object.keys(rates).length} forex pair rates`
+    );
     return rates;
   } catch (error) {
     console.error("Error fetching forex pair rates:", error);
     throw error;
   }
+};
+
+// Fallback rates in case API is unavailable
+export const getFallbackRate = (fromCurrency: string, toCurrency: string): number => {
+  const fallbackRates: Record<string, Record<string, number>> = {
+    USD: {
+      EUR: 0.85,
+      GBP: 0.75,
+      JPY: 110.0,
+      AUD: 1.35,
+      CAD: 1.25,
+      CHF: 0.92,
+      NZD: 1.42,
+      INR: 75.0,
+    },
+    EUR: {
+      USD: 1.18,
+      GBP: 0.88,
+      JPY: 130.0,
+      AUD: 1.60,
+      CAD: 1.48,
+      CHF: 1.08,
+      NZD: 1.68,
+      INR: 88.5,
+    },
+    // Add more fallback rates as needed
+  };
+
+  // If we have a direct rate
+  if (
+    fallbackRates[fromCurrency] &&
+    fallbackRates[fromCurrency][toCurrency]
+  ) {
+    return fallbackRates[fromCurrency][toCurrency];
+  }
+
+  // If we have the inverse rate
+  if (
+    fallbackRates[toCurrency] &&
+    fallbackRates[toCurrency][fromCurrency]
+  ) {
+    return 1 / fallbackRates[toCurrency][fromCurrency];
+  }
+
+  // If same currency
+  if (fromCurrency === toCurrency) {
+    return 1;
+  }
+
+  // Default fallback
+  return 1.0;
+};
+
+// Get fallback forex pair rates
+export const getFallbackForexPairRates = (): Record<string, number> => {
+  return {
+    EURUSD: 1.18,
+    GBPUSD: 1.38,
+    USDJPY: 110.0,
+    AUDUSD: 0.74,
+    USDCAD: 1.25,
+    USDCHF: 0.92,
+    NZDUSD: 0.70,
+    EURGBP: 0.85,
+    EURJPY: 130.0,
+    GBPJPY: 152.0,
+  };
 };
