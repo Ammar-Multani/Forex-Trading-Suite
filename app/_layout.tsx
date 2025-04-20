@@ -1,87 +1,87 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { PaperProvider } from 'react-native-paper';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { darkTheme } from '../utils/theme';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function Layout() {
+  const { isDark } = useTheme();
+  
   return (
-    <PaperProvider theme={darkTheme}>
-      <SafeAreaProvider>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerStyle: {
-              backgroundColor: '#121212',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-            contentStyle: {
-              backgroundColor: '#121212',
-            },
-          }}
-        >
-          <Stack.Screen
-            name="index"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="calculators/[id]"
-            options={({ route }) => ({
-              title: getCalculatorTitle(route.params?.id),
-              headerBackTitle: 'Back',
-            })}
-          />
-          <Stack.Screen
-            name="settings"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="appearance"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="terms"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="disclaimer"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="privacy"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="manual"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="report-bug"
-            options={{
-              headerShown: false,
-            }}
-          />
-        </Stack>
-      </SafeAreaProvider>
-    </PaperProvider>
+    <Stack
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: isDark ? '#121212' : '#f6f6f6',
+        },
+        headerTintColor: isDark ? '#fff' : '#000',
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+        contentStyle: {
+          backgroundColor: isDark ? '#121212' : '#f6f6f6',
+        },
+      }}
+    >
+      <Stack.Screen
+        name="index"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="calculators/[id]"
+        options={({ route }) => ({
+          title: getCalculatorTitle(route.params?.id),
+          headerBackTitle: 'Back',
+        })}
+      />
+      <Stack.Screen
+        name="settings"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="appearance"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="terms"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="disclaimer"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="privacy"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="manual"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="report-bug"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="exchange-rates"
+        options={{
+          headerShown: false,
+        }}
+      />
+    </Stack>
   );
 }
 

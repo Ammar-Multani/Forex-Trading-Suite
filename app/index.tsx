@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Calculator cards data
 const calculators = [
@@ -75,6 +76,7 @@ const calculators = [
 
 export default function Home() {
   const router = useRouter();
+  const { isDark } = useTheme();
 
   const navigateToCalculator = (id: string) => {
     router.push(`/calculators/${id}`);
@@ -89,21 +91,16 @@ export default function Home() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f6f6f6' }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>Forex Calculator Suite</Text>
-          <Text style={styles.subtitle}>Professional trading tools</Text>
+          <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>Forex Calculator Suite</Text>
+          <Text style={[styles.subtitle, { color: isDark ? '#aaa' : '#666' }]}>Professional trading tools</Text>
         </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity onPress={navigateToExchangeRates} style={styles.headerButton}>
-            <Ionicons name="trending-up-outline" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={navigateToSettings} style={styles.headerButton}>
-            <Ionicons name="settings-outline" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={navigateToSettings} style={styles.settingsButton}>
+          <Ionicons name="settings-outline" size={24} color={isDark ? '#fff' : '#000'} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView 

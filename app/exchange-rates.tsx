@@ -6,11 +6,13 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useExchangeRates } from '../contexts/ExchangeRateContext';
 import { CURRENCY_PAIRS } from '../constants/currencies';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function ExchangeRatesScreen() {
   const router = useRouter();
   const { forexPairRates, isLoading, lastUpdated, refreshRates } = useExchangeRates();
   const [refreshing, setRefreshing] = useState(false);
+  const { isDark } = useTheme();
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -24,12 +26,12 @@ export default function ExchangeRatesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f6f6f6' }]} edges={['bottom']}>
+      <View style={[styles.header, { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Exchange Rates</Text>
+        <Text style={[styles.headerTitle, { color: isDark ? '#fff' : '#000' }]}>Exchange Rates</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -41,7 +43,7 @@ export default function ExchangeRatesScreen() {
         }
       >
         <View style={styles.lastUpdatedContainer}>
-          <Text style={styles.lastUpdatedText}>
+          <Text style={[styles.lastUpdatedText, { color: isDark ? '#aaa' : '#666' }]}>
             Last updated: {formatDate(lastUpdated)}
           </Text>
           <TouchableOpacity onPress={refreshRates} disabled={isLoading}>
@@ -57,28 +59,28 @@ export default function ExchangeRatesScreen() {
         {isLoading && !refreshing && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#6200ee" />
-            <Text style={styles.loadingText}>Updating exchange rates...</Text>
+            <Text style={[styles.loadingText, { color: isDark ? '#aaa' : '#666' }]}>Updating exchange rates...</Text>
           </View>
         )}
 
-        <View style={styles.ratesContainer}>
-          <View style={styles.rateHeader}>
-            <Text style={styles.pairHeaderText}>Currency Pair</Text>
-            <Text style={styles.rateHeaderText}>Rate</Text>
+        <View style={[styles.ratesContainer, { backgroundColor: isDark ? '#1E1E1E' : '#fff' }]}>
+          <View style={[styles.rateHeader, { backgroundColor: isDark ? '#2A2A2A' : '#f0f0f0' }]}>
+            <Text style={[styles.pairHeaderText, { color: isDark ? '#fff' : '#000' }]}>Currency Pair</Text>
+            <Text style={[styles.rateHeaderText, { color: isDark ? '#fff' : '#000' }]}>Rate</Text>
           </View>
-          <Divider style={styles.divider} />
+          <Divider style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
           
           {CURRENCY_PAIRS.map((pair) => (
             <View key={pair}>
               <View style={styles.rateRow}>
-                <Text style={styles.pairText}>{pair}</Text>
+                <Text style={[styles.pairText, { color: isDark ? '#fff' : '#000' }]}>{pair}</Text>
                 <Text style={styles.rateText}>
                   {forexPairRates[pair] 
                     ? forexPairRates[pair].toFixed(4) 
                     : 'Loading...'}
                 </Text>
               </View>
-              <Divider style={styles.divider} />
+              <Divider style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
             </View>
           ))}
         </View>
