@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface ResultDisplayProps {
   label: string;
@@ -12,16 +13,22 @@ interface ResultDisplayProps {
 export default function ResultDisplay({ 
   label, 
   value, 
-  color = '#fff', 
+  color, 
   isLarge = false 
 }: ResultDisplayProps) {
+  const { isDark } = useTheme();
+  
+  // Default color based on theme if not provided
+  const textColor = color || (isDark ? '#fff' : '#000');
+  const labelColor = isDark ? '#aaa' : '#666';
+  
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: labelColor }]}>{label}</Text>
       <Text 
         style={[
           styles.value, 
-          { color }, 
+          { color: textColor }, 
           isLarge && styles.largeValue
         ]}
       >
@@ -37,7 +44,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: '#aaa',
     marginBottom: 4,
   },
   value: {

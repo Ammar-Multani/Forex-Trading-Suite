@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Surface, Text } from 'react-native-paper';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface CalculatorCardProps {
   title: string;
@@ -8,10 +9,30 @@ interface CalculatorCardProps {
 }
 
 export default function CalculatorCard({ title, children }: CalculatorCardProps) {
+  const { isDark } = useTheme();
+  
   return (
-    <Surface style={styles.card}>
-      <View style={styles.titleContainer}>
-        <Text style={styles.title}>{title}</Text>
+    <Surface 
+      style={[
+        styles.card, 
+        { 
+          backgroundColor: isDark ? '#1E1E1E' : '#ffffff',
+          elevation: isDark ? 4 : 2,
+        }
+      ]}
+    >
+      <View 
+        style={[
+          styles.titleContainer, 
+          { 
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#f5f5f5',
+            borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+          }
+        ]}
+      >
+        <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
+          {title}
+        </Text>
       </View>
       <View style={styles.content}>
         {children}
@@ -23,21 +44,16 @@ export default function CalculatorCard({ title, children }: CalculatorCardProps)
 const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
-    backgroundColor: '#1E1E1E',
     marginBottom: 16,
     overflow: 'hidden',
-    elevation: 4,
   },
   titleContainer: {
     padding: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
   },
   content: {
     padding: 16,

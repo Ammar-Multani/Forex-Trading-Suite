@@ -4,6 +4,7 @@ import { Text } from 'react-native-paper';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { useExchangeRates } from '../../contexts/ExchangeRateContext';
 import { CURRENCY_PAIRS } from '../../constants/currencies';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface CurrencyPairSelectorProps {
   value: string;
@@ -17,6 +18,7 @@ export default function CurrencyPairSelector({ value, onChange }: CurrencyPairSe
   );
   
   const { forexPairRates } = useExchangeRates();
+  const { isDark } = useTheme();
   
   useEffect(() => {
     if (Object.keys(forexPairRates).length > 0) {
@@ -31,7 +33,7 @@ export default function CurrencyPairSelector({ value, onChange }: CurrencyPairSe
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Currency Pair</Text>
+      <Text style={[styles.label, { color: isDark ? '#aaa' : '#666' }]}>Currency Pair</Text>
       <DropDownPicker
         open={open}
         value={value}
@@ -39,9 +41,24 @@ export default function CurrencyPairSelector({ value, onChange }: CurrencyPairSe
         setOpen={setOpen}
         setValue={onChange}
         setItems={setItems}
-        style={styles.dropdown}
-        textStyle={styles.dropdownText}
-        dropDownContainerStyle={styles.dropdownList}
+        style={[
+          styles.dropdown, 
+          { 
+            backgroundColor: isDark ? '#2A2A2A' : '#f5f5f5',
+            borderColor: isDark ? '#444' : '#ddd',
+          }
+        ]}
+        textStyle={[
+          styles.dropdownText,
+          { color: isDark ? '#fff' : '#000' }
+        ]}
+        dropDownContainerStyle={[
+          styles.dropdownList,
+          {
+            backgroundColor: isDark ? '#2A2A2A' : '#f5f5f5',
+            borderColor: isDark ? '#444' : '#ddd',
+          }
+        ]}
         listMode="SCROLLVIEW"
         searchable={true}
         searchPlaceholder="Search currency pair..."
@@ -58,19 +75,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: '#aaa',
     marginBottom: 8,
   },
   dropdown: {
-    backgroundColor: '#2A2A2A',
-    borderColor: '#444',
     borderRadius: 8,
   },
   dropdownText: {
-    color: '#fff',
   },
   dropdownList: {
-    backgroundColor: '#2A2A2A',
-    borderColor: '#444',
   },
 });

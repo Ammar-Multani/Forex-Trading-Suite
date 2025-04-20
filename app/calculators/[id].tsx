@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // Import calculator components
 import CompoundingCalculator from '../../components/calculators/CompoundingCalculator';
@@ -17,6 +18,7 @@ import StopLossTakeProfitCalculator from '../../components/calculators/StopLossT
 export default function CalculatorScreen() {
   const { id } = useLocalSearchParams();
   const calculatorId = Array.isArray(id) ? id[0] : id;
+  const { isDark } = useTheme();
 
   // Render the appropriate calculator based on the ID
   const renderCalculator = () => {
@@ -45,7 +47,13 @@ export default function CalculatorScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView 
+      style={[
+        styles.container, 
+        { backgroundColor: isDark ? '#121212' : '#f6f6f6' }
+      ]} 
+      edges={['bottom']}
+    >
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -60,7 +68,6 @@ export default function CalculatorScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
   },
   scrollView: {
     flex: 1,
