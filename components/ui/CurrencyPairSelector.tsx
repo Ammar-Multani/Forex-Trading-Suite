@@ -33,7 +33,7 @@ export default function CurrencyPairSelector({ value, onChange }: CurrencyPairSe
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.label, { color: isDark ? '#aaa' : '#666' }]}>Currency Pair</Text>
+      <Text variant="bodySmall" style={{ marginBottom: 8 }}>Currency Pair</Text>
       <DropDownPicker
         open={open}
         value={value}
@@ -72,10 +72,6 @@ const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
     zIndex: 2000,
-  },
-  label: {
-    fontSize: 14,
-    marginBottom: 8,
   },
   dropdown: {
     borderRadius: 8,

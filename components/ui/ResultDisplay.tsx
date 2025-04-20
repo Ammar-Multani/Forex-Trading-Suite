@@ -20,17 +20,13 @@ export default function ResultDisplay({
   
   // Default color based on theme if not provided
   const textColor = color || (isDark ? '#fff' : '#000');
-  const labelColor = isDark ? '#aaa' : '#666';
   
   return (
     <View style={styles.container}>
-      <Text style={[styles.label, { color: labelColor }]}>{label}</Text>
+      <Text variant="bodySmall" style={{ color: isDark ? '#aaa' : '#666' }}>{label}</Text>
       <Text 
-        style={[
-          styles.value, 
-          { color: textColor }, 
-          isLarge && styles.largeValue
-        ]}
+        variant={isLarge ? "titleLarge" : "titleMedium"}
+        style={{ color: textColor }}
       >
         {value}
       </Text>
@@ -41,16 +37,5 @@ export default function ResultDisplay({
 const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  value: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  largeValue: {
-    fontSize: 24,
   },
 });

@@ -54,14 +54,14 @@ export default function SettingsScreen() {
     <TouchableOpacity style={styles.settingItem} onPress={onPress}>
       <View style={styles.settingItemLeft}>
         <Ionicons name={icon as any} size={24} color={color} style={styles.settingIcon} />
-        <Text style={[styles.settingText, { color }]}>{title}</Text>
+        <Text variant="bodyLarge" style={{ color }}>{title}</Text>
       </View>
       {showChevron && <Ionicons name="chevron-forward" size={20} color={isDark ? '#666' : '#999'} />}
     </TouchableOpacity>
   );
 
   const renderSectionHeader = (title: string) => (
-    <Text style={[styles.sectionHeader, { color: isDark ? '#888' : '#666' }]}>{title}</Text>
+    <Text variant="bodySmall" style={styles.sectionHeader}>{title}</Text>
   );
 
   return (
@@ -70,7 +70,7 @@ export default function SettingsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: isDark ? '#fff' : '#000' }]}>SETTINGS</Text>
+        <Text variant="titleLarge">SETTINGS</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -113,7 +113,7 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.versionContainer}>
-          <Text style={[styles.versionText, { color: isDark ? '#666' : '#999' }]}>Version 1.0.0</Text>
+          <Text variant="bodySmall" style={{ color: isDark ? '#666' : '#999' }}>Version 1.0.0</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

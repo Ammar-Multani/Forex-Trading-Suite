@@ -16,36 +16,36 @@ export default function AppearanceScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: isDark ? '#fff' : '#000' }]}>Appearance</Text>
+        <Text variant="titleLarge">Appearance</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <View style={styles.content}>
-        <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#000' }]}>Theme</Text>
+        <Text variant="titleMedium" style={{ marginBottom: 8 }}>Theme</Text>
         <View style={[styles.settingSection, { backgroundColor: isDark ? '#1E1E1E' : '#fff' }]}>
           <RadioButton.Group onValueChange={(value) => setThemeMode(value as 'light' | 'dark' | 'system')} value={themeMode}>
             <View style={styles.radioItem}>
               <RadioButton value="light" color="#6200ee" />
-              <Text style={[styles.radioLabel, { color: isDark ? '#fff' : '#000' }]}>Light</Text>
+              <Text variant="bodyLarge">Light</Text>
             </View>
             
             <Divider style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
             
             <View style={styles.radioItem}>
               <RadioButton value="dark" color="#6200ee" />
-              <Text style={[styles.radioLabel, { color: isDark ? '#fff' : '#000' }]}>Dark</Text>
+              <Text variant="bodyLarge">Dark</Text>
             </View>
             
             <Divider style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
             
             <View style={styles.radioItem}>
               <RadioButton value="system" color="#6200ee" />
-              <Text style={[styles.radioLabel, { color: isDark ? '#fff' : '#000' }]}>System Default</Text>
+              <Text variant="bodyLarge">System Default</Text>
             </View>
           </RadioButton.Group>
         </View>
         
-        <Text style={[styles.note, { color: isDark ? '#aaa' : '#666' }]}>
+        <Text variant="bodySmall" style={styles.note}>
           System Default will automatically switch between light and dark themes based on your device settings.
         </Text>
       </View>

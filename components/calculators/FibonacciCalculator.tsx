@@ -84,16 +84,16 @@ export default function FibonacciCalculator() {
             }}
           />
           
-          <Text style={[styles.radioLabel, { color: isDark ? '#aaa' : '#666' }]}>Trend Direction</Text>
+          <Text variant="bodySmall" style={{ marginBottom: 8 }}>Trend Direction</Text>
           <RadioButton.Group onValueChange={value => setTrend(value)} value={trend}>
             <View style={styles.radioContainer}>
               <View style={styles.radioButton}>
                 <RadioButton value="uptrend" color="#6200ee" />
-                <Text style={[styles.radioText, { color: isDark ? '#fff' : '#000' }]}>Uptrend</Text>
+                <Text variant="bodyMedium">Uptrend</Text>
               </View>
               <View style={styles.radioButton}>
                 <RadioButton value="downtrend" color="#6200ee" />
-                <Text style={[styles.radioText, { color: isDark ? '#fff' : '#000' }]}>Downtrend</Text>
+                <Text variant="bodyMedium">Downtrend</Text>
               </View>
             </View>
           </RadioButton.Group>
@@ -102,22 +102,22 @@ export default function FibonacciCalculator() {
         <Divider style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
         
         <View style={styles.resultsContainer}>
-          <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#000' }]}>Fibonacci Retracement Levels</Text>
+          <Text variant="titleMedium" style={{ marginBottom: 8 }}>Fibonacci Retracement Levels</Text>
           <ScrollView style={styles.levelsContainer}>
             {retracements.map((level, index) => (
               <View key={`ret-${index}`} style={[styles.levelRow, { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
-                <Text style={styles.levelPercent}>{level.level}%</Text>
-                <Text style={[styles.levelPrice, { color: isDark ? '#fff' : '#000' }]}>{formatPrice(level.price)}</Text>
+                <Text variant="bodyMedium" style={styles.levelPercent}>{level.level}%</Text>
+                <Text variant="bodyMedium">{formatPrice(level.price)}</Text>
               </View>
             ))}
           </ScrollView>
           
-          <Text style={[styles.sectionTitle, { marginTop: 16, color: isDark ? '#fff' : '#000' }]}>Fibonacci Extension Levels</Text>
+          <Text variant="titleMedium" style={{ marginTop: 16, marginBottom: 8 }}>Fibonacci Extension Levels</Text>
           <ScrollView style={styles.levelsContainer}>
             {extensions.map((level, index) => (
               <View key={`ext-${index}`} style={[styles.levelRow, { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
-                <Text style={styles.levelPercent}>{level.level}%</Text>
-                <Text style={[styles.levelPrice, { color: isDark ? '#fff' : '#000' }]}>{formatPrice(level.price)}</Text>
+                <Text variant="bodyMedium" style={styles.levelPercent}>{level.level}%</Text>
+                <Text variant="bodyMedium">{formatPrice(level.price)}</Text>
               </View>
             ))}
           </ScrollView>
@@ -137,10 +137,6 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 16,
   },
-  radioLabel: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
   radioContainer: {
     flexDirection: 'row',
     marginBottom: 16,
@@ -150,18 +146,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 24,
   },
-  radioText: {
-  },
   divider: {
     marginVertical: 16,
   },
   resultsContainer: {
     marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
   },
   levelsContainer: {
     maxHeight: 200,
@@ -175,7 +164,5 @@ const styles = StyleSheet.create({
   levelPercent: {
     color: '#6200ee',
     fontWeight: 'bold',
-  },
-  levelPrice: {
   },
 });

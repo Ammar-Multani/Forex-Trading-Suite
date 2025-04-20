@@ -31,7 +31,7 @@ export default function ExchangeRatesScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: isDark ? '#fff' : '#000' }]}>Exchange Rates</Text>
+        <Text variant="titleLarge">Exchange Rates</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -43,7 +43,7 @@ export default function ExchangeRatesScreen() {
         }
       >
         <View style={styles.lastUpdatedContainer}>
-          <Text style={[styles.lastUpdatedText, { color: isDark ? '#aaa' : '#666' }]}>
+          <Text variant="bodySmall">
             Last updated: {formatDate(lastUpdated)}
           </Text>
           <TouchableOpacity onPress={refreshRates} disabled={isLoading}>
@@ -59,22 +59,22 @@ export default function ExchangeRatesScreen() {
         {isLoading && !refreshing && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#6200ee" />
-            <Text style={[styles.loadingText, { color: isDark ? '#aaa' : '#666' }]}>Updating exchange rates...</Text>
+            <Text variant="bodySmall" style={{ marginTop: 10 }}>Updating exchange rates...</Text>
           </View>
         )}
 
         <View style={[styles.ratesContainer, { backgroundColor: isDark ? '#1E1E1E' : '#fff' }]}>
           <View style={[styles.rateHeader, { backgroundColor: isDark ? '#2A2A2A' : '#f0f0f0' }]}>
-            <Text style={[styles.pairHeaderText, { color: isDark ? '#fff' : '#000' }]}>Currency Pair</Text>
-            <Text style={[styles.rateHeaderText, { color: isDark ? '#fff' : '#000' }]}>Rate</Text>
+            <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>Currency Pair</Text>
+            <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>Rate</Text>
           </View>
           <Divider style={[styles.divider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
           
           {CURRENCY_PAIRS.map((pair) => (
             <View key={pair}>
               <View style={styles.rateRow}>
-                <Text style={[styles.pairText, { color: isDark ? '#fff' : '#000' }]}>{pair}</Text>
-                <Text style={styles.rateText}>
+                <Text variant="bodyMedium">{pair}</Text>
+                <Text variant="bodyMedium" style={{ color: '#6200ee', fontWeight: 'bold' }}>
                   {forexPairRates[pair] 
                     ? forexPairRates[pair].toFixed(4) 
                     : 'Loading...'}

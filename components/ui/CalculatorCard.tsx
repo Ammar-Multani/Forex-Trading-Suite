@@ -30,7 +30,7 @@ export default function CalculatorCard({ title, children }: CalculatorCardProps)
           }
         ]}
       >
-        <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
+        <Text variant="titleLarge">
           {title}
         </Text>
       </View>
@@ -50,10 +50,6 @@ const styles = StyleSheet.create({
   titleContainer: {
     padding: 16,
     borderBottomWidth: 1,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   content: {
     padding: 16,

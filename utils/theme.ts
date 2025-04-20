@@ -23,6 +23,12 @@ const lightColors = {
   success: '#4CAF50',
   warning: '#FB8C00',
   info: '#2196F3',
+  onSurface: '#000000',
+  onBackground: '#000000',
+  onPrimary: '#ffffff',
+  onSecondary: '#000000',
+  surfaceVariant: '#f0f0f0',
+  onSurfaceVariant: '#666666',
 };
 
 // Custom colors for dark theme
@@ -40,6 +46,22 @@ const darkColors = {
   success: '#4CAF50',
   warning: '#FB8C00',
   info: '#2196F3',
+  onSurface: '#ffffff',
+  onBackground: '#ffffff',
+  onPrimary: '#000000',
+  onSecondary: '#000000',
+  surfaceVariant: '#2A2A2A',
+  onSurfaceVariant: '#aaaaaa',
+};
+
+// Create custom font configuration
+const fontConfig = {
+  fontFamily: 'System',
+  fontWeight: {
+    regular: '400',
+    medium: '500',
+    bold: '700',
+  },
 };
 
 // Create light theme
@@ -49,6 +71,54 @@ export const lightTheme = {
   colors: lightColors,
   dark: false,
   mode: 'exact' as const,
+  fonts: {
+    ...MD3LightTheme.fonts,
+    bodyLarge: {
+      ...MD3LightTheme.fonts.bodyLarge,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.regular,
+    },
+    bodyMedium: {
+      ...MD3LightTheme.fonts.bodyMedium,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.regular,
+    },
+    bodySmall: {
+      ...MD3LightTheme.fonts.bodySmall,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.regular,
+    },
+    labelLarge: {
+      ...MD3LightTheme.fonts.labelLarge,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.medium,
+    },
+    labelMedium: {
+      ...MD3LightTheme.fonts.labelMedium,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.medium,
+    },
+    labelSmall: {
+      ...MD3LightTheme.fonts.labelSmall,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.medium,
+    },
+    titleLarge: {
+      ...MD3LightTheme.fonts.titleLarge,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.bold,
+    },
+    titleMedium: {
+      ...MD3LightTheme.fonts.titleMedium,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.bold,
+    },
+    titleSmall: {
+      ...MD3LightTheme.fonts.titleSmall,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.bold,
+    },
+  },
 };
 
 // Create dark theme
@@ -58,6 +128,54 @@ export const darkTheme = {
   colors: darkColors,
   dark: true,
   mode: 'exact' as const,
+  fonts: {
+    ...MD3DarkTheme.fonts,
+    bodyLarge: {
+      ...MD3DarkTheme.fonts.bodyLarge,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.regular,
+    },
+    bodyMedium: {
+      ...MD3DarkTheme.fonts.bodyMedium,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.regular,
+    },
+    bodySmall: {
+      ...MD3DarkTheme.fonts.bodySmall,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.regular,
+    },
+    labelLarge: {
+      ...MD3DarkTheme.fonts.labelLarge,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.medium,
+    },
+    labelMedium: {
+      ...MD3DarkTheme.fonts.labelMedium,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.medium,
+    },
+    labelSmall: {
+      ...MD3DarkTheme.fonts.labelSmall,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.medium,
+    },
+    titleLarge: {
+      ...MD3DarkTheme.fonts.titleLarge,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.bold,
+    },
+    titleMedium: {
+      ...MD3DarkTheme.fonts.titleMedium,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.bold,
+    },
+    titleSmall: {
+      ...MD3DarkTheme.fonts.titleSmall,
+      fontFamily: fontConfig.fontFamily,
+      fontWeight: fontConfig.fontWeight.bold,
+    },
+  },
 };
 
 // Get theme based on scheme
@@ -70,4 +188,5 @@ export interface AppTheme {
   dark: boolean;
   colors: typeof darkColors;
   mode: 'exact';
+  fonts: typeof darkTheme.fonts;
 }
