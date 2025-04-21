@@ -1,7 +1,7 @@
 {
   "expo": {
-    "owner": "appacella",
-    "name": "user-app",
+    "owner": "Forex Trading Suite",
+    "name": "forex-trading-suite",
     "slug": "user-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -18,10 +18,13 @@
     },
     "android": {
       "package": "com.appacella.userapp",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/appacella-logo-white.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": ["INTERNET"],
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "bundler": "metro",

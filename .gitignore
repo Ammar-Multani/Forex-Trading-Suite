@@ -34,3 +34,17 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# cache
+.cache/
+
+# logs
+
+# TraderMade API key
+traderMadeApiKey.txt    
+
+# android
+android/
+
+# ios
+ios/

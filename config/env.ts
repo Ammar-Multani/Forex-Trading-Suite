@@ -1,5 +1,5 @@
 // Environment variables for the app
 export default {
-  // You should replace this with your actual API key
-  traderMadeApiKey: "demo",
+  // Your TraderMade API key for real-time forex data
+  traderMadeApiKey: "ixh2QN-O4kmYz52jg3kd",
 };

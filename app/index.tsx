@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 5,
@@ -191,6 +191,8 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: "#ccc",
   },
   cardBlur: {
     flex: 1,
@@ -208,6 +210,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
+    borderWidth: 0.3,
+    borderColor: "#ccc",
   },
   calculatorName: {
     fontSize: 16,
