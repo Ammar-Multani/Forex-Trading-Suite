@@ -132,9 +132,9 @@ function calculateEnhancedCompoundInterest(
   let balance = principal;
   let totalContributions = principal;
   let totalWithdrawals = 0;
-  let totalTaxesPaid = 0;
-  let lastEarnings = 0;
   let totalInterestEarned = 0;
+  let lastEarnings = 0;
+  let totalTaxesPaid = 0; // Initialize tax tracker
 
   // Initialize data arrays with initial values
   const growthData = [{ x: 0, y: principal }];
@@ -143,19 +143,20 @@ function calculateEnhancedCompoundInterest(
 
   // Main calculation loop - improved precision
   for (let i = 1; i <= periods; i++) {
+    // Initialize interestEarned for this period
+    let interestEarned = 0;
+
     // Calculate interest for this period - exact algorithm to match reference
     // For a monthly rate of 12%, we calculate as 0.12 (12% as decimal)
-    const interestEarned = balance * (monthlyRate / 100);
+    interestEarned = balance * (monthlyRate / 100);
     totalInterestEarned += interestEarned;
 
-    // Add interest to balance before taxes
+    // Add interest to balance
     balance += interestEarned;
 
-    // Apply tax on interest if applicable
+    // Apply tax on interest earnings
     const taxAmount = interestEarned * (taxRate / 100);
     totalTaxesPaid += taxAmount;
-
-    // Subtract tax from balance
     balance -= taxAmount;
 
     // Add additional contribution if it's time and contributions are non-zero
@@ -190,7 +191,7 @@ function calculateEnhancedCompoundInterest(
     // Add to monthly breakdown for detailed view
     monthlyBreakdown.push({
       period: i,
-      earnings: interestEarned - taxAmount,
+      earnings: interestEarned,
       balance: balance,
     });
 
@@ -205,16 +206,23 @@ function calculateEnhancedCompoundInterest(
       // Save breakdown data for each year
       breakdownData.push({
         period: yearsPassed,
-        earnings: interestEarned - taxAmount,
+        earnings: interestEarned,
         balance: balance,
       });
 
       // Save last period earnings
       if (i === periods) {
-        lastEarnings = interestEarned - taxAmount;
+        lastEarnings = interestEarned;
       }
     }
   }
+
+  // Calculate total earnings before tax
+  const totalEarningsBeforeTax =
+    balance - totalContributions + totalWithdrawals;
+
+  // No need to calculate or apply tax at the end anymore since it's done periodically
+  // We'll use the totalTaxesPaid that has been accumulating during the calculation
 
   // Final calculations without rounding intermediate values
   const endBalance = balance;
@@ -912,8 +920,8 @@ export default function CompoundingCalculator() {
       let totalInterestEarned = 0;
       let totalContributions = principal; // Include initial principal
       let totalWithdrawals = 0;
-      let totalTaxesPaid = 0;
       let lastPeriodInterest = 0;
+      let totalTaxesPaid = 0; // Initialize tax tracker
 
       // Track growth for charting
       const growthData = [{ x: 0, y: principal }];
@@ -937,48 +945,16 @@ export default function CompoundingCalculator() {
 
       // Calculate interest for each period with exact precision
       for (let i = 0; i < periods; i++) {
-        // Determine if this is a compounding period
-        const shouldCompoundThisPeriod =
+        // Initialize interestEarned for this period
+        let interestEarned = 0;
+
+        // Check if this is a compounding period
+        const isCompoundingPeriod =
           compoundingFrequencyNum >= returnFrequencyNum ||
           (i + 1) % Math.round(returnFrequencyNum / compoundingFrequencyNum) ===
             0;
 
-        // Initialize values for this period
-        let interestEarned = 0;
-        let taxAmount = 0;
-
-        // Apply interest for this period (if it's a compounding period)
-        if (shouldCompoundThisPeriod) {
-          // Convert percentage to decimal precisely
-          const interestRateDecimal = periodicRate / 100;
-
-          // For less frequent compounding, calculate effective rate
-          let effectiveRate = interestRateDecimal;
-
-          if (compoundingFrequencyNum < returnFrequencyNum) {
-            const periodsPerCompound = Math.round(
-              returnFrequencyNum / compoundingFrequencyNum
-            );
-            // Use compound interest formula: (1+r)^n - 1
-            effectiveRate =
-              Math.pow(1 + interestRateDecimal, periodsPerCompound) - 1;
-          }
-
-          // Calculate interest earned on current balance
-          interestEarned = balance * effectiveRate;
-
-          // Add interest to balance
-          balance += interestEarned;
-          totalInterestEarned += interestEarned;
-          lastPeriodInterest = interestEarned;
-
-          // Calculate and apply tax
-          taxAmount = interestEarned * (taxRateNum / 100);
-          totalTaxesPaid += taxAmount;
-          balance -= taxAmount;
-        }
-
-        // Add contributions - exact timing matters for reference app matching
+        // First process contributions (start of period)
         if (additionalContributionsNum > 0 && contributionFrequencyNum > 0) {
           const contributionPeriod = Math.round(
             returnFrequencyNum / contributionFrequencyNum
@@ -989,7 +965,7 @@ export default function CompoundingCalculator() {
           }
         }
 
-        // Process withdrawals - ensure proper timing
+        // Then process withdrawals (middle of period)
         if (withdrawalsNum > 0 && withdrawalFrequencyNum > 0) {
           const withdrawalPeriod = Math.round(
             returnFrequencyNum / withdrawalFrequencyNum
@@ -1001,15 +977,49 @@ export default function CompoundingCalculator() {
           }
         }
 
-        // Store breakdown data at appropriate intervals
-        if ((i + 1) % 1 === 0) {
-          // Store every period for detailed view
-          monthlyBreakdown.push({
-            period: i + 1,
-            earnings: interestEarned - taxAmount,
-            balance: balance,
-          });
+        // Finally calculate interest for compounding periods only
+        if (isCompoundingPeriod) {
+          // For quarterly compounding (4 times a year)
+          if (compoundingFrequencyNum === 4 && returnFrequencyNum === 12) {
+            // Special case: Quarterly compounding with monthly return frequency
+            // Calculate 3 months of interest at once
+            const monthlyRateDecimal = periodicRate / 100; // Convert to decimal
+            const quarterlyRate = monthlyRateDecimal * 3; // Simple quarterly rate without compounding
+            interestEarned = balance * quarterlyRate;
+          } else {
+            // Regular rate calculation for other frequencies
+            const rateDecimal = periodicRate / 100; // Convert to decimal
+
+            // Calculate effective rate for the period
+            const periodsPerCompound = Math.round(
+              returnFrequencyNum / compoundingFrequencyNum
+            );
+            const effectiveRate =
+              periodsPerCompound > 1
+                ? rateDecimal * periodsPerCompound // Simple multiplication for less frequent compounding
+                : rateDecimal; // Regular rate for normal compounding
+
+            interestEarned = balance * effectiveRate;
+          }
+
+          // Add interest to balance
+          balance += interestEarned;
+          totalInterestEarned += interestEarned;
+          lastPeriodInterest = interestEarned;
+
+          // Apply tax on this period's interest earnings
+          const taxAmount = interestEarned * (taxRateNum / 100);
+          balance -= taxAmount;
+          // Keep track of the taxes paid
+          totalTaxesPaid += taxAmount;
         }
+
+        // Store breakdown data for this period
+        monthlyBreakdown.push({
+          period: i + 1,
+          earnings: interestEarned,
+          balance: balance,
+        });
 
         // Track yearly progress for chart
         if ((i + 1) % returnFrequencyNum === 0 || i === periods - 1) {
@@ -1021,11 +1031,20 @@ export default function CompoundingCalculator() {
 
           breakdownData.push({
             period: yearsPassed,
-            earnings: interestEarned - taxAmount,
+            earnings: interestEarned,
             balance: balance,
           });
         }
       }
+
+      // Calculate earnings (tax is already applied periodically)
+      const earningsBeforeTax = balance - totalContributions + totalWithdrawals;
+
+      // No need to calculate or apply tax at the end anymore since it's done periodically
+      // We'll use the totalTaxesPaid that has been accumulating during the calculation
+
+      // Final calculations
+      const totalEarnings = balance - totalContributions + totalWithdrawals;
 
       // Calculate the final metrics with precise formulas
 
@@ -1036,9 +1055,6 @@ export default function CompoundingCalculator() {
 
       // Time to double using the rule of 72 with the effective annual rate
       const timeToDouble = 72 / (periodicRate * (returnFrequencyNum / 12));
-
-      // Total earnings calculation
-      const totalEarnings = balance - totalContributions + totalWithdrawals;
 
       // All-time rate of return as percentage of contributions
       const allTimeRateOfReturn =
