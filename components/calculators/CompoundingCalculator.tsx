@@ -31,8 +31,12 @@ import AccountCurrencySelector from "../ui/AccountCurrencySelector";
 import { formatCurrency } from "../../utils/calculators";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useExchangeRates } from "../../contexts/ExchangeRateContext";
-import { CURRENCIES } from "../../constants/currencies";
-import { CurrencyCode, currencyData } from "../ui/CurrencyPickerModal";
+import {
+  CURRENCIES,
+  Currency,
+  getCurrencyByCode,
+} from "../../constants/currencies";
+import PageHeader from "../ui/PageHeader";
 
 // Type definition for calculation results
 type CalculationResults = {
@@ -374,7 +378,7 @@ const FrequencySelector = ({
       <Text
         variant="bodySmall"
         style={{
-          marginBottom: 8,
+          marginBottom: 5,
           color: isDark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
           fontWeight: "500",
         }}
@@ -513,7 +517,7 @@ export default function CompoundingCalculator() {
   const { isLoading, lastUpdated, refreshRates, error } = useExchangeRates();
 
   // Basic inputs
-  const [currency, setCurrency] = useState<CurrencyCode>("USD");
+  const [currency, setCurrency] = useState<string>("USD");
   const [startingBalance, setStartingBalance] = useState("0.00");
   const [rateOfReturn, setRateOfReturn] = useState("0");
   const [years, setYears] = useState("0");
@@ -1377,43 +1381,20 @@ export default function CompoundingCalculator() {
   };
 
   // Custom formatted currency display to match reference exactly
-  const formatCurrencyWithSymbol = (value: number, currency: CurrencyCode) => {
-    // Handle NaN, undefined, invalid values, or explicitly zero
-    if (isNaN(value) || value === undefined) {
-      return `${currencyData[currency]?.symbol || ""}0.00`;
+  const formatCurrencyWithSymbol = (value: number, currencyCode: string) => {
+    if (typeof value !== "number" || isNaN(value)) {
+      const currencyDetails = getCurrencyByCode(currencyCode);
+      return `${currencyDetails?.symbol || ""}0.00`;
     }
 
-    // Get currency symbol from currencyData
-    const symbol = currencyData[currency]?.symbol || "";
+    // Get currency symbol from Currency data
+    const currencyDetails = getCurrencyByCode(currencyCode);
+    const symbol = currencyDetails?.symbol || "";
 
-    // Special case for zero to prevent formatting issues
-    if (value === 0) {
-      return `${symbol}0.00`;
-    }
-
-    // Format with commas and proper decimal places to match reference
-    try {
-      // For large numbers, avoid scientific notation
-      let formattedValue;
-      if (value >= 1e12) {
-        // Trillion or more
-        formattedValue = value.toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-          notation: "standard",
-        });
-      } else {
-        formattedValue = value.toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
-      }
-      return `${symbol}${formattedValue}`;
-    } catch (error) {
-      console.error("Formatting error:", error, "Value:", value);
-      // Fallback if formatting fails
-      return `${symbol}${value.toString()}`;
-    }
+    return `${symbol}${value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
   // Show modal
@@ -1835,55 +1816,25 @@ export default function CompoundingCalculator() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Currency setup section */}
-        <View style={[styles.sectionContainer, glassmorphismStyle]}>
-          <View style={styles.sectionHeaderRow}>
-            <View
-              style={[
-                styles.iconContainer,
-                {
-                  backgroundColor: isDark
-                    ? "rgba(138, 43, 226, 0.25)"
-                    : "rgba(138, 43, 226, 0.15)",
-                },
-              ]}
-            >
-              <Ionicons name="cash-outline" size={22} color="#9370DB" />
-            </View>
-            <Text
-              variant="titleMedium"
-              style={[styles.sectionTitle, { color: isDark ? "#fff" : "#000" }]}
-            >
-              Currency
-            </Text>
-          </View>
+        <PageHeader
+          title="Compound Interest Calculator"
+          subtitle="Calculate and visualize the power of compound growth"
+        />
 
+        <CalculatorCard
+          title="Currency"
+          icon="cash-outline"
+          iconPack="Ionicons"
+        >
           <AccountCurrencySelector value={currency} onChange={setCurrency} />
-        </View>
+        </CalculatorCard>
 
         {/* Basic inputs section */}
-        <View style={[styles.sectionContainer, glassmorphismStyle]}>
-          <View style={styles.sectionHeaderRow}>
-            <View
-              style={[
-                styles.iconContainer,
-                {
-                  backgroundColor: isDark
-                    ? "rgba(138, 43, 226, 0.25)"
-                    : "rgba(138, 43, 226, 0.15)",
-                },
-              ]}
-            >
-              <Ionicons name="calculator-outline" size={22} color="#9370DB" />
-            </View>
-            <Text
-              variant="titleMedium"
-              style={[styles.sectionTitle, { color: isDark ? "#fff" : "#000" }]}
-            >
-              Investment Details
-            </Text>
-          </View>
-
+        <CalculatorCard
+          title="Investment Details"
+          icon="calculator-outline"
+          iconPack="Ionicons"
+        >
           <TextInput
             label="Starting Balance"
             value={startingBalance}
@@ -1892,7 +1843,9 @@ export default function CompoundingCalculator() {
             }
             keyboardType="numeric"
             left={
-              <TextInput.Affix text={currencyData[currency]?.symbol || ""} />
+              <TextInput.Affix
+                text={getCurrencyByCode(currency)?.symbol || ""}
+              />
             }
             style={[styles.input, styles.modernInput]}
             mode="outlined"
@@ -1994,8 +1947,11 @@ export default function CompoundingCalculator() {
               color={isDark ? "#E6E6FA" : "#483D8B"}
             />
           </TouchableOpacity>
+        </CalculatorCard>
 
-          {showAdvanced && (
+        {/* Advanced options section in a separate card */}
+        {showAdvanced && (
+          <CalculatorCard title="Advanced Options">
             <View style={styles.advancedOptions}>
               <FrequencySelector
                 label="Compounding Frequency"
@@ -2030,7 +1986,7 @@ export default function CompoundingCalculator() {
                 keyboardType="numeric"
                 left={
                   <TextInput.Affix
-                    text={currencyData[currency]?.symbol || ""}
+                    text={getCurrencyByCode(currency)?.symbol || ""}
                   />
                 }
                 style={[styles.input, styles.modernInput]}
@@ -2080,7 +2036,7 @@ export default function CompoundingCalculator() {
                 style={[
                   styles.divider,
                   {
-                    marginVertical: 20,
+                    marginVertical: 5,
                     backgroundColor: isDark
                       ? "rgba(255, 255, 255, 0.05)"
                       : "rgba(0, 0, 0, 0.05)",
@@ -2113,7 +2069,7 @@ export default function CompoundingCalculator() {
                 keyboardType="numeric"
                 left={
                   <TextInput.Affix
-                    text={currencyData[currency]?.symbol || ""}
+                    text={getCurrencyByCode(currency)?.symbol || ""}
                   />
                 }
                 style={[styles.input, styles.modernInput]}
@@ -2163,7 +2119,7 @@ export default function CompoundingCalculator() {
                 style={[
                   styles.divider,
                   {
-                    marginVertical: 20,
+                    marginVertical: 5,
                     backgroundColor: isDark
                       ? "rgba(255, 255, 255, 0.05)"
                       : "rgba(0, 0, 0, 0.05)",
@@ -2173,7 +2129,7 @@ export default function CompoundingCalculator() {
 
               <View style={styles.advancedSectionHeader}>
                 <Ionicons
-                  name="calculator-outline"
+                  name="receipt-outline"
                   size={18}
                   color={isDark ? "#81D4FA" : "#2196F3"}
                 />
@@ -2183,7 +2139,7 @@ export default function CompoundingCalculator() {
                     { color: isDark ? "#81D4FA" : "#2196F3" },
                   ]}
                 >
-                  Tax Calculation
+                  Tax
                 </Text>
               </View>
 
@@ -2306,8 +2262,8 @@ export default function CompoundingCalculator() {
                 </Text>
               </View>
             </View>
-          )}
-        </View>
+          </CalculatorCard>
+        )}
 
         <Divider
           style={[
@@ -2386,7 +2342,7 @@ export default function CompoundingCalculator() {
                       { color: isDark ? "#ffffff" : "#4527A0" },
                     ]}
                   >
-                    {currencyData[currency]?.symbol || ""}
+                    {getCurrencyByCode(currency)?.symbol || ""}
                   </Text>
                   <Text
                     style={[
@@ -3007,7 +2963,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 14,
-    marginBottom: 16,
+    marginBottom: 0,
     height: 52,
   },
   modalContent: {
@@ -3033,7 +2989,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 8,
-    marginTop: 12,
+    marginTop: 8,
   },
   advancedSectionTitle: {
     fontSize: 16,
@@ -3044,10 +3000,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.1)",
     padding: 8,
     borderRadius: 8,
-    marginBottom: 16,
+    marginTop: -25,
   },
   advancedSummary: {
-    marginTop: 16,
+    marginTop: 0,
     marginBottom: 20,
     padding: 12,
     backgroundColor: "rgba(255, 255, 255, 0.05)",
@@ -3071,7 +3027,7 @@ const styles = StyleSheet.create({
   advancedResultItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 0,
     marginRight: 12,
   },
   resetButtonContainer: {
@@ -3089,7 +3045,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   advancedSectionNote: {
-    marginTop: 12,
+    marginTop: 0,
     padding: 12,
     backgroundColor: "rgba(255, 255, 255, 0.05)",
     borderRadius: 8,

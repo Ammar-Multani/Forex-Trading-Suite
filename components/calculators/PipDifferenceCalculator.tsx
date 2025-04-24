@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Dimensions,
+} from "react-native";
 import {
   TextInput,
   Text,
@@ -7,23 +13,18 @@ import {
   IconButton,
   Button,
   Chip,
+  Surface,
+  Menu,
 } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 import { calculatePipDifference } from "../../utils/calculators";
 import CalculatorCard from "../ui/CalculatorCard";
-import ResultDisplay from "../ui/ResultDisplay";
 import CurrencyPairSelector from "../ui/CurrencyPairSelector";
 import { useTheme } from "../../contexts/ThemeContext";
+import PageHeader from "../ui/PageHeader";
 
-// Common currency pairs for quick selection
-const COMMON_PAIRS = [
-  "EUR/USD",
-  "GBP/USD",
-  "USD/JPY",
-  "AUD/USD",
-  "USD/CAD",
-  "USD/CHF",
-];
+// Get the screen width for animations
+const { width } = Dimensions.get("window");
 
 export default function PipDifferenceCalculator() {
   const { isDark } = useTheme();
@@ -32,11 +33,16 @@ export default function PipDifferenceCalculator() {
   const [currencyPair, setCurrencyPair] = useState("EUR/USD");
   const [priceA, setPriceA] = useState("1.2000");
   const [priceB, setPriceB] = useState("1.1950");
-  const [showPairSuggestions, setShowPairSuggestions] = useState(false);
 
   // State for results
   const [pipDifference, setPipDifference] = useState(0);
   const [direction, setDirection] = useState<"up" | "down" | "none">("down");
+
+  // State for filter and organization
+  const [historyFilterOpen, setHistoryFilterOpen] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<"all" | "favorites">(
+    "all"
+  );
 
   // History of calculations
   const [history, setHistory] = useState<
@@ -47,6 +53,7 @@ export default function PipDifferenceCalculator() {
       pips: number;
       direction: "up" | "down" | "none";
       timestamp: Date;
+      isFavorite?: boolean;
     }>
   >([]);
 
@@ -79,8 +86,14 @@ export default function PipDifferenceCalculator() {
           priceA: a.toString(),
           priceB: b.toString(),
           pips,
-          direction: a > b ? "down" : a < b ? "up" : "none",
+          direction:
+            a > b
+              ? ("down" as const)
+              : a < b
+              ? ("up" as const)
+              : ("none" as const),
           timestamp: new Date(),
+          isFavorite: false,
         };
 
         // Check if this calculation is already in history
@@ -103,17 +116,26 @@ export default function PipDifferenceCalculator() {
     setPriceB(priceA);
   };
 
-  const selectPair = (pair: string) => {
-    setCurrencyPair(pair);
-    setShowPairSuggestions(false);
-  };
-
   const clearHistory = () => {
     setHistory([]);
   };
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const getRelativeTime = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min ago`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hr ago`;
+
+    return formatTime(date);
   };
 
   const getDirectionIcon = (dir: "up" | "down" | "none") => {
@@ -128,57 +150,44 @@ export default function PipDifferenceCalculator() {
     return "#9E9E9E";
   };
 
+  const deleteHistoryItem = (index: number) => {
+    setHistory((prev) => {
+      const newHistory = [...prev];
+      newHistory.splice(index, 1);
+      return newHistory;
+    });
+  };
+
+  const toggleFavorite = (index: number) => {
+    setHistory((prev) => {
+      const newHistory = [...prev];
+      newHistory[index] = {
+        ...newHistory[index],
+        isFavorite: !newHistory[index].isFavorite,
+      };
+      return newHistory;
+    });
+  };
+
+  // Filter history based on selected filter
+  const filteredHistory =
+    historyFilter === "favorites"
+      ? history.filter((item) => item.isFavorite)
+      : history;
+
   return (
     <View style={styles.container}>
-      <CalculatorCard title="Pip Difference Calculator">
+      <PageHeader
+        title="Pip Difference Calculator"
+        subtitle="Calculate the difference between two prices in pips"
+      />
+      <CalculatorCard title="Calculate Pip Difference">
         <View style={styles.inputsContainer}>
-          <View style={styles.pairSelectorContainer}>
-            <TouchableOpacity
-              style={[
-                styles.pairSelector,
-                {
-                  backgroundColor: isDark ? "#2A2A2A" : "#f5f5f5",
-                  borderColor: isDark ? "#444" : "#ddd",
-                },
-              ]}
-              onPress={() => setShowPairSuggestions(!showPairSuggestions)}
-            >
-              <Text style={{ color: isDark ? "#fff" : "#000" }}>
-                {currencyPair}
-              </Text>
-              <Ionicons
-                name={showPairSuggestions ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={isDark ? "#fff" : "#000"}
-              />
-            </TouchableOpacity>
-
-            {showPairSuggestions && (
-              <View
-                style={[
-                  styles.pairSuggestions,
-                  {
-                    backgroundColor: isDark ? "#2A2A2A" : "#f5f5f5",
-                    borderColor: isDark ? "#444" : "#ddd",
-                  },
-                ]}
-              >
-                <ScrollView>
-                  {COMMON_PAIRS.map((pair) => (
-                    <TouchableOpacity
-                      key={pair}
-                      style={styles.pairOption}
-                      onPress={() => selectPair(pair)}
-                    >
-                      <Text style={{ color: isDark ? "#fff" : "#000" }}>
-                        {pair}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
+          <CurrencyPairSelector
+            label="Currency Pair"
+            selectedPair={currencyPair}
+            onSelect={(pair) => setCurrencyPair(pair)}
+          />
 
           <View style={styles.priceInputsContainer}>
             <TextInput
@@ -305,77 +314,266 @@ export default function PipDifferenceCalculator() {
           </Text>
         </View>
 
-        {history.length > 0 && (
-          <>
-            <Divider
-              style={[
-                styles.divider,
-                {
-                  backgroundColor: isDark
-                    ? "rgba(255, 255, 255, 0.1)"
-                    : "rgba(0, 0, 0, 0.1)",
-                },
-              ]}
-            />
+        <Divider
+          style={[
+            styles.divider,
+            {
+              backgroundColor: isDark
+                ? "rgba(255, 255, 255, 0.1)"
+                : "rgba(0, 0, 0, 0.1)",
+            },
+          ]}
+        />
 
-            <View style={styles.historyContainer}>
-              <View style={styles.historyHeader}>
-                <Text
-                  variant="titleMedium"
-                  style={{ color: isDark ? "#fff" : "#000" }}
-                >
-                  Recent Calculations
-                </Text>
-                <Button
-                  mode="text"
-                  onPress={clearHistory}
-                  compact
-                  textColor="#6200ee"
-                >
-                  Clear
-                </Button>
-              </View>
+        <View style={styles.historyContainer}>
+          <View style={styles.historyHeader}>
+            <Text
+              variant="titleMedium"
+              style={{ color: isDark ? "#fff" : "#000" }}
+            >
+              Recent Calculations
+            </Text>
+            <View style={styles.historyActions}>
+              <Menu
+                visible={historyFilterOpen}
+                onDismiss={() => setHistoryFilterOpen(false)}
+                contentStyle={{
+                  backgroundColor: isDark ? "#1e1e1e" : "#ffffff",
+                  top: 60,
+                  borderWidth: 1,
+                  borderColor: "grey",
+                }}
+                anchor={
+                  <Button
+                    mode="text"
+                    onPress={() => setHistoryFilterOpen(true)}
+                    icon="filter-variant"
+                    textColor="#6200ee"
+                    compact
+                  >
+                    {historyFilter === "favorites" ? "Favorites" : "All"}
+                  </Button>
+                }
+              >
+                <Menu.Item
+                  onPress={() => {
+                    setHistoryFilter("all");
+                    setHistoryFilterOpen(false);
+                  }}
+                  title="All"
+                  leadingIcon="format-list-bulleted"
+                  trailingIcon={historyFilter === "all" ? "check" : undefined}
+                />
+                <Menu.Item
+                  onPress={() => {
+                    setHistoryFilter("favorites");
+                    setHistoryFilterOpen(false);
+                  }}
+                  title="Favorites"
+                  leadingIcon="star"
+                  trailingIcon={
+                    historyFilter === "favorites" ? "check" : undefined
+                  }
+                />
+              </Menu>
 
-              <ScrollView style={styles.historyList}>
-                {history.map((item, index) => (
-                  <View key={index} style={styles.historyItem}>
-                    <View style={styles.historyItemLeft}>
-                      <Text
-                        variant="bodyMedium"
-                        style={{ color: isDark ? "#fff" : "#000" }}
-                      >
-                        {item.pair}
-                      </Text>
-                      <Text
-                        variant="bodySmall"
-                        style={{ color: isDark ? "#aaa" : "#666" }}
-                      >
-                        {formatTime(item.timestamp)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.historyItemRight}>
-                      <Ionicons
-                        name={getDirectionIcon(item.direction)}
-                        size={16}
-                        color={getDirectionColor(item.direction)}
-                      />
-                      <Text
-                        variant="bodyMedium"
-                        style={{
-                          color: getDirectionColor(item.direction),
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {item.pips.toFixed(1)} pips
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
+              <Button
+                mode="text"
+                onPress={clearHistory}
+                compact
+                textColor="#6200ee"
+              >
+                Clear
+              </Button>
             </View>
-          </>
-        )}
+          </View>
+
+          {filteredHistory.length > 0 ? (
+            <ScrollView style={styles.historyList}>
+              {filteredHistory.map((item, index) => {
+                // Check if this is the first item or if the date is different from the previous item
+                const isNewDay =
+                  index === 0 ||
+                  new Date(item.timestamp).toDateString() !==
+                    new Date(
+                      filteredHistory[index - 1].timestamp
+                    ).toDateString();
+
+                return (
+                  <React.Fragment key={index}>
+                    {isNewDay && (
+                      <Text
+                        style={[
+                          styles.historyDateHeader,
+                          {
+                            color: isDark
+                              ? "rgba(255,255,255,0.7)"
+                              : "rgba(0,0,0,0.6)",
+                          },
+                        ]}
+                      >
+                        {new Date(item.timestamp).toLocaleDateString()}
+                      </Text>
+                    )}
+                    <Surface
+                      style={[
+                        styles.historyItem,
+                        index === 0 && styles.historyItemRecent,
+                        {
+                          backgroundColor:
+                            index === 0
+                              ? isDark
+                                ? "#321b6e"
+                                : "#efe5ff"
+                              : isDark
+                              ? "#1e1e1e"
+                              : "#ffffff",
+                          borderBottomColor: isDark
+                            ? "rgba(255, 255, 255, 0.1)"
+                            : "rgba(0, 0, 0, 0.1)",
+                          borderRadius: 8,
+                          marginHorizontal: 0,
+                          marginBottom: 6,
+                        },
+                      ]}
+                      elevation={0}
+                    >
+                      <TouchableOpacity
+                        style={styles.historyItemTouchable}
+                        onPress={() => {
+                          setCurrencyPair(item.pair);
+                          setPriceA(item.priceA);
+                          setPriceB(item.priceB);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.historyItemLeft}>
+                          <View style={styles.historyItemTopRow}>
+                            <Text
+                              variant="bodyMedium"
+                              style={[
+                                styles.historyItemPair,
+                                { color: isDark ? "#fff" : "#000" },
+                              ]}
+                            >
+                              {item.pair}
+                            </Text>
+                            {item.isFavorite && (
+                              <Ionicons
+                                name="star"
+                                size={16}
+                                color="#6200ee"
+                                style={{ marginLeft: 4 }}
+                              />
+                            )}
+                          </View>
+
+                          <View style={styles.historyItemDetails}>
+                            <Text
+                              variant="bodySmall"
+                              style={{
+                                color: isDark
+                                  ? "rgba(255,255,255,0.6)"
+                                  : "rgba(0,0,0,0.5)",
+                              }}
+                            >
+                              {item.priceA} → {item.priceB}
+                            </Text>
+                            <Text
+                              variant="bodySmall"
+                              style={{
+                                color: isDark
+                                  ? "rgba(255,255,255,0.5)"
+                                  : "rgba(0,0,0,0.4)",
+                              }}
+                            >
+                              {getRelativeTime(item.timestamp)}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.historyItemRight}>
+                          <View style={styles.historyItemActions}>
+                            <IconButton
+                              icon={item.isFavorite ? "star" : "star-outline"}
+                              size={18}
+                              onPress={() => toggleFavorite(index)}
+                              iconColor={
+                                item.isFavorite
+                                  ? "#6200ee"
+                                  : isDark
+                                  ? "rgba(255,255,255,0.5)"
+                                  : "rgba(0,0,0,0.4)"
+                              }
+                              style={styles.actionButton}
+                            />
+                            <IconButton
+                              icon="trash-can-outline"
+                              size={18}
+                              onPress={() => deleteHistoryItem(index)}
+                              iconColor={
+                                isDark
+                                  ? "rgba(255,255,255,0.5)"
+                                  : "rgba(0,0,0,0.4)"
+                              }
+                              style={styles.actionButton}
+                            />
+                          </View>
+
+                          <View style={styles.pipDisplay}>
+                            <Ionicons
+                              name={getDirectionIcon(item.direction)}
+                              size={16}
+                              color={getDirectionColor(item.direction)}
+                            />
+                            <Text
+                              variant="bodyMedium"
+                              style={{
+                                color: getDirectionColor(item.direction),
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {item.pips.toFixed(1)} pips
+                            </Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    </Surface>
+                  </React.Fragment>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <View style={styles.emptyHistory}>
+              <Ionicons
+                name="calculator-outline"
+                size={48}
+                color={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}
+              />
+              <Text
+                style={[
+                  styles.emptyHistoryText,
+                  {
+                    color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)",
+                  },
+                ]}
+              >
+                {historyFilter === "favorites"
+                  ? "No favorite calculations yet"
+                  : "No calculations yet"}
+              </Text>
+              {historyFilter === "favorites" && history.length > 0 && (
+                <Button
+                  mode="outlined"
+                  onPress={() => setHistoryFilter("all")}
+                  style={styles.emptyHistoryButton}
+                >
+                  Show all calculations
+                </Button>
+              )}
+            </View>
+          )}
+        </View>
       </CalculatorCard>
     </View>
   );
@@ -386,37 +584,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inputsContainer: {
-    marginBottom: 16,
-  },
-  pairSelectorContainer: {
-    marginBottom: 16,
-    position: "relative",
-    zIndex: 1000,
-  },
-  pairSelector: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 8,
-  },
-  pairSuggestions: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    right: 0,
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-    maxHeight: 200,
-    zIndex: 1001,
-  },
-  pairOption: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    paddingTop: 20,
   },
   priceInputsContainer: {
     flexDirection: "row",
@@ -463,24 +631,83 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+    paddingHorizontal: 16,
+  },
+  historyActions: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   historyList: {
-    maxHeight: 200,
+    maxHeight: 350,
+  },
+  historyDateHeader: {
+    fontSize: 12,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 16,
+    fontWeight: "500",
   },
   historyItem: {
+    borderBottomWidth: 1,
+  },
+  historyItemTouchable: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    paddingHorizontal: 16,
+  },
+  historyItemRecent: {
+    borderLeftWidth: 4,
+    borderLeftColor: "#6200ee",
   },
   historyItemLeft: {
     flex: 1,
   },
+  historyItemTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  historyItemPair: {
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  historyItemDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "70%",
+  },
   historyItemRight: {
+    alignItems: "flex-end",
+  },
+  historyItemActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: 2,
+  },
+  actionButton: {
+    margin: 0,
+    padding: 0,
+    width: 24,
+    height: 24,
+  },
+  pipDisplay: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+  },
+  emptyHistory: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 30,
+  },
+  emptyHistoryText: {
+    marginTop: 16,
+    fontSize: 16,
+    textAlign: "center",
+  },
+  emptyHistoryButton: {
+    marginTop: 16,
   },
 });

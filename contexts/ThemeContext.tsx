@@ -16,13 +16,61 @@ type ThemeMode = "light" | "dark" | "system";
 // Storage key for theme mode
 const THEME_MODE_STORAGE_KEY = "@forex_calculator_theme_mode";
 
+// Gradient configurations for different components
+type GradientType = "card" | "button" | "header" | "background";
+
+// Function to get gradient based on component type and theme
+const getGradientConfig = (type: GradientType, isDark: boolean) => {
+  switch (type) {
+    case "card":
+      return {
+        colors: isDark
+          ? ["rgba(30, 30, 30, 0.8)", "rgba(20, 20, 20, 0.9)"]
+          : ["rgba(255, 255, 255, 0.9)", "rgba(245, 245, 245, 0.8)"],
+        start: { x: 0, y: 0 },
+        end: { x: 1, y: 1 },
+      };
+    case "button":
+      return {
+        colors: [brandColors.primary, brandColors.primaryDark],
+        start: { x: 0, y: 0 },
+        end: { x: 1, y: 0 },
+      };
+    case "header":
+      return {
+        colors: isDark ? ["#1a1a1a", "#121212"] : ["#ffffff", "#f6f6f6"],
+        start: { x: 0, y: 0 },
+        end: { x: 0, y: 1 },
+      };
+    case "background":
+      return {
+        colors: isDark ? ["#121212", "#0a0a0a"] : ["#f6f6f6", "#ffffff"],
+        start: { x: 0, y: 0 },
+        end: { x: 0, y: 1 },
+      };
+    default:
+      return {
+        colors: isDark
+          ? ["rgba(30, 30, 30, 0.8)", "rgba(20, 20, 20, 0.9)"]
+          : ["rgba(255, 255, 255, 0.9)", "rgba(245, 245, 245, 0.8)"],
+        start: { x: 0, y: 0 },
+        end: { x: 1, y: 1 },
+      };
+  }
+};
+
 interface ThemeContextType {
   theme: AppTheme;
   themeMode: ThemeMode;
   isDark: boolean;
   setThemeMode: (mode: ThemeMode) => void;
   toggleTheme: () => void;
-  colors: typeof brandColors; // Export brand colors for direct use
+  colors: typeof lightTheme.colors; // Export full theme colors
+  getGradient: (type: GradientType) => {
+    colors: string[];
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+  };
 }
 
 const ThemeContext = createContext<ThemeContextType>({
@@ -31,7 +79,12 @@ const ThemeContext = createContext<ThemeContextType>({
   isDark: true,
   setThemeMode: () => {},
   toggleTheme: () => {},
-  colors: brandColors,
+  colors: darkTheme.colors,
+  getGradient: () => ({
+    colors: ["#000", "#000"],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+  }),
 });
 
 export const useTheme = () => useContext(ThemeContext);
@@ -135,6 +188,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // Get the appropriate theme
   const theme = isDark ? darkTheme : lightTheme;
 
+  // Function to get gradient for components
+  const getGradient = useCallback(
+    (type: GradientType) => getGradientConfig(type, isDark),
+    [isDark]
+  );
+
   // Apply system UI styling on initial load or when isDark changes
   useEffect(() => {
     updateSystemUI(isDark);
@@ -153,7 +212,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         isDark,
         setThemeMode,
         toggleTheme,
-        colors: brandColors,
+        colors: theme.colors,
+        getGradient,
       }}
     >
       {children}

@@ -1,9 +1,14 @@
 import { fetchExchangeRate } from "./api";
-import { CURRENCY_SYMBOLS } from "../constants/currencies";
+import {
+  CURRENCY_SYMBOLS,
+  getCurrencyByCode,
+  getCurrencyPairByName,
+} from "../constants/currencies";
 
-// Get currency symbol from the symbol map
+// Get currency symbol from the currency data
 export const getCurrencySymbol = (currencyCode: string): string => {
-  return CURRENCY_SYMBOLS[currencyCode] || currencyCode;
+  const currency = getCurrencyByCode(currencyCode);
+  return currency ? currency.symbol : currencyCode;
 };
 
 // Format currency with proper symbol and decimal places
@@ -50,13 +55,24 @@ export const convertCurrency = async (
 export const parseCurrencyPair = (
   pair: string
 ): { base: string; quote: string } => {
+  const currencyPair = getCurrencyPairByName(pair);
+  if (currencyPair) {
+    return { base: currencyPair.base, quote: currencyPair.quote };
+  }
+
+  // Fallback to splitting the string
   const [base, quote] = pair.split("/");
   return { base, quote };
 };
 
 // Get pip value for a currency pair
 export const getPipValue = (pair: string): number => {
-  // JPY pairs have 2 decimal places (0.01), others have 4 (0.0001)
+  const currencyPair = getCurrencyPairByName(pair);
+  if (currencyPair) {
+    return currencyPair.pipDecimalPlaces === 2 ? 0.01 : 0.0001;
+  }
+
+  // Fallback to old logic
   const { base, quote } = parseCurrencyPair(pair);
   return base === "JPY" || quote === "JPY" ? 0.01 : 0.0001;
 };

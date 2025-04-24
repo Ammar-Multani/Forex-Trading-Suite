@@ -9,109 +9,13 @@ import {
 } from "react-native";
 import { useTheme } from "../../contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
-
-type CurrencyCode =
-  | "USD"
-  | "EUR"
-  | "GBP"
-  | "JPY"
-  | "CHF"
-  | "AUD"
-  | "CAD"
-  | "NZD"
-  | "CNY"
-  | "HKD"
-  | "SGD"
-  | "INR";
-
-export interface Currency {
-  code: CurrencyCode;
-  name: string;
-  symbol: string;
-  countryCode: string;
-}
+import { Currency } from "../../constants/currencies";
 
 interface CurrencySelectorProps {
   label: string;
   selectedCurrency: Currency;
   onPress: () => void;
 }
-
-// Currency data mapping
-const currencyData: Record<CurrencyCode, Currency> = {
-  USD: {
-    code: "USD",
-    name: "US Dollar",
-    symbol: "$",
-    countryCode: "us",
-  },
-  EUR: {
-    code: "EUR",
-    name: "Euro",
-    symbol: "€",
-    countryCode: "eu",
-  },
-  GBP: {
-    code: "GBP",
-    name: "British Pound",
-    symbol: "£",
-    countryCode: "gb",
-  },
-  JPY: {
-    code: "JPY",
-    name: "Japanese Yen",
-    symbol: "¥",
-    countryCode: "jp",
-  },
-  CHF: {
-    code: "CHF",
-    name: "Swiss Franc",
-    symbol: "Fr",
-    countryCode: "ch",
-  },
-  AUD: {
-    code: "AUD",
-    name: "Australian Dollar",
-    symbol: "A$",
-    countryCode: "au",
-  },
-  CAD: {
-    code: "CAD",
-    name: "Canadian Dollar",
-    symbol: "C$",
-    countryCode: "ca",
-  },
-  NZD: {
-    code: "NZD",
-    name: "New Zealand Dollar",
-    symbol: "NZ$",
-    countryCode: "nz",
-  },
-  CNY: {
-    code: "CNY",
-    name: "Chinese Yuan",
-    symbol: "¥",
-    countryCode: "cn",
-  },
-  HKD: {
-    code: "HKD",
-    name: "Hong Kong Dollar",
-    symbol: "HK$",
-    countryCode: "hk",
-  },
-  SGD: {
-    code: "SGD",
-    name: "Singapore Dollar",
-    symbol: "S$",
-    countryCode: "sg",
-  },
-  INR: {
-    code: "INR",
-    name: "Indian Rupee",
-    symbol: "₹",
-    countryCode: "in",
-  },
-};
 
 const CurrencySelector: React.FC<CurrencySelectorProps> = ({
   label,
@@ -254,4 +158,3 @@ const styles = StyleSheet.create({
 });
 
 export default CurrencySelector;
-export { currencyData };

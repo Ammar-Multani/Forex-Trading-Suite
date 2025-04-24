@@ -1,19 +1,19 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTheme } from '../../contexts/ThemeContext';
+import React from "react";
+import { View, StyleSheet, ScrollView } from "react-native";
+import { useLocalSearchParams, Stack } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "../../contexts/ThemeContext";
 
 // Import calculator components
-import CompoundingCalculator from '../../components/calculators/CompoundingCalculator';
-import FibonacciCalculator from '../../components/calculators/FibonacciCalculator';
-import PipDifferenceCalculator from '../../components/calculators/PipDifferenceCalculator';
-import PipCalculator from '../../components/calculators/PipCalculator';
-import PivotPointsCalculator from '../../components/calculators/PivotPointsCalculator';
-import PositionSizeCalculator from '../../components/calculators/PositionSizeCalculator';
-import ProfitLossCalculator from '../../components/calculators/ProfitLossCalculator';
-import MarginCalculator from '../../components/calculators/MarginCalculator';
-import StopLossTakeProfitCalculator from '../../components/calculators/StopLossTakeProfitCalculator';
+import CompoundingCalculator from "../../components/calculators/CompoundingCalculator";
+import FibonacciCalculator from "../../components/calculators/FibonacciCalculator";
+import PipDifferenceCalculator from "../../components/calculators/PipDifferenceCalculator";
+import PipCalculator from "../../components/calculators/PipCalculator";
+import PivotPointsCalculator from "../../components/calculators/PivotPointsCalculator";
+import PositionSizeCalculator from "../../components/calculators/PositionSizeCalculator";
+import ProfitLossCalculator from "../../components/calculators/ProfitLossCalculator";
+import MarginCalculator from "../../components/calculators/MarginCalculator";
+import StopLossTakeProfitCalculator from "../../components/calculators/StopLossTakeProfitCalculator";
 
 export default function CalculatorScreen() {
   const { id } = useLocalSearchParams();
@@ -23,23 +23,23 @@ export default function CalculatorScreen() {
   // Render the appropriate calculator based on the ID
   const renderCalculator = () => {
     switch (calculatorId) {
-      case 'compounding':
+      case "compounding":
         return <CompoundingCalculator />;
-      case 'fibonacci':
+      case "fibonacci":
         return <FibonacciCalculator />;
-      case 'pip-difference':
+      case "pip-difference":
         return <PipDifferenceCalculator />;
-      case 'pip-value':
+      case "pip-value":
         return <PipCalculator />;
-      case 'pivot-points':
+      case "pivot-points":
         return <PivotPointsCalculator />;
-      case 'position-size':
+      case "position-size":
         return <PositionSizeCalculator />;
-      case 'profit-loss':
+      case "profit-loss":
         return <ProfitLossCalculator />;
-      case 'margin':
+      case "margin":
         return <MarginCalculator />;
-      case 'stop-loss':
+      case "stop-loss":
         return <StopLossTakeProfitCalculator />;
       default:
         return <View style={styles.notFound}></View>;
@@ -47,21 +47,24 @@ export default function CalculatorScreen() {
   };
 
   return (
-    <SafeAreaView 
-      style={[
-        styles.container, 
-        { backgroundColor: isDark ? '#121212' : '#f6f6f6' }
-      ]} 
-      edges={['bottom']}
-    >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView
+        style={[
+          styles.container,
+          { backgroundColor: isDark ? "#121212" : "#f6f6f6" },
+        ]}
+        edges={["bottom"]}
       >
-        {renderCalculator()}
-      </ScrollView>
-    </SafeAreaView>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderCalculator()}
+        </ScrollView>
+      </SafeAreaView>
+    </>
   );
 }
 
@@ -78,7 +81,7 @@ const styles = StyleSheet.create({
   },
   notFound: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

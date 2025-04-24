@@ -11,44 +11,38 @@ import {
   Platform,
   Alert,
   Modal,
-  StatusBar,
 } from "react-native";
-import { useTheme } from "@/contexts/ThemeContext";
-import {
-  PageHeader,
-  CurrencySelector,
-  CurrencyModal,
-  CurrencyPairSelector,
-  CurrencyPairModal,
-  LotSizeSelector,
-  LotSizeEditorModal,
-  PipInput,
-  ResultCard,
-  CalculatorModal,
-} from "@/components";
+import { useTheme } from "../contexts/ThemeContext";
+import Header from "../components/Header";
+import CurrencySelector from "../components/CurrencySelector";
+import CurrencyModal from "../components/CurrencyModal";
+import CurrencyPairSelector from "../components/CurrencyPairSelector";
+import CurrencyPairModal from "../components/CurrencyPairModal";
+import LotSizeSelector from "../components/LotSizeSelector";
+import LotSizeEditorModal from "../components/LotSizeEditorModal";
+import PipInput from "./components/PipInput";
+import ResultCard from "../components/ResultCard";
+import CalculatorModal from "../components/CalculatorModal";
 import {
   currencies,
   currencyPairs,
   Currency,
   CurrencyPair,
-} from "@/constants/currencies";
+} from "../constants/currencies";
 import {
   defaultLotSizes,
   LotSize,
   LotType,
   calculateTotalUnits,
-} from "@/constants/lotSizes";
+} from "../constants/lotSizes";
 import {
   calculatePipValueInQuoteCurrency,
   calculatePipValueInAccountCurrency,
-} from "@/utils/calculators";
-import { fetchExchangeRate } from "@/services/api";
+} from "../utils/pipCalculator";
+import { fetchExchangeRate } from "../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { CalculatorScreenNavigationProp } from "@/types";
-import CalculatorCard from "../ui/CalculatorCard";
-import AccountCurrencySelector from "../ui/AccountCurrencySelector";
 
 // Storage keys
 const ACCOUNT_CURRENCY_KEY = "forex-pip-calculator-account-currency";
@@ -60,14 +54,10 @@ const CUSTOM_UNITS_KEY = "forex-pip-calculator-custom-units";
 const PIP_COUNT_KEY = "forex-pip-calculator-pip-count";
 const PIP_DECIMAL_PLACES_KEY = "forex-pip-calculator-pip-decimal-places";
 
-interface PipCalculatorProps {
-  navigation: CalculatorScreenNavigationProp;
-}
+const CalculatorScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const { colors, theme, toggleTheme, getGradient } = useTheme();
+  const isDarkMode = theme === "dark";
 
-const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
-  const { colors, isDark } = useTheme();
-  const [currencyPair, setCurrencyPair] = useState("EUR/USD");
-  const [currency, setCurrency] = useState<string>("USD");
   // State for currency selection
   const [accountCurrency, setAccountCurrency] = useState<Currency>(
     currencies[0]
@@ -75,21 +65,6 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
   const [selectedPair, setSelectedPair] = useState<CurrencyPair>(
     currencyPairs[0]
   );
-
-  // Update currencyPair when selectedPair changes
-  useEffect(() => {
-    if (selectedPair) {
-      setCurrencyPair(selectedPair.name);
-    }
-  }, [selectedPair]);
-
-  // Update selectedPair when currencyPair changes
-  useEffect(() => {
-    const pair = currencyPairs.find((p) => p.name === currencyPair);
-    if (pair) {
-      setSelectedPair(pair);
-    }
-  }, [currencyPair]);
 
   // State for modals
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
@@ -261,17 +236,9 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
       // Get pip count as number
       const pipCountNum = parseFloat(pipCount) || 0;
 
-      // Get currency pair object for calculations
-      const currencyPairObj = currencyPairs.find(
-        (p) => p.name === currencyPair
-      );
-      if (!currencyPairObj) {
-        throw new Error(`Invalid currency pair: ${currencyPair}`);
-      }
-
       // Calculate pip value in quote currency with the selected decimal place
       const pipValueQuote = calculatePipValueInQuoteCurrency(
-        currencyPairObj,
+        selectedPair,
         positionSize,
         pipCountNum,
         pipDecimalPlaces
@@ -283,13 +250,13 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
         // Professional trading platforms use this direct approach
 
         // If quote currency is the same as account currency
-        if (currencyPairObj.quote === accountCurrency.code) {
+        if (selectedPair.quote === accountCurrency.code) {
           const rate = 1;
           setExchangeRate(rate);
 
           const pipValueAccount = calculatePipValueInAccountCurrency(
             pipValueQuote,
-            currencyPairObj.quote,
+            selectedPair.quote,
             accountCurrency.code,
             rate
           );
@@ -302,14 +269,14 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
           // Get direct exchange rate from quote currency to account currency
           // This matches professional trading platforms' calculation logic
           const rate = await fetchExchangeRate(
-            currencyPairObj.quote,
+            selectedPair.quote,
             accountCurrency.code
           );
           setExchangeRate(rate);
 
           const pipValueAccount = calculatePipValueInAccountCurrency(
             pipValueQuote,
-            currencyPairObj.quote,
+            selectedPair.quote,
             accountCurrency.code,
             rate
           );
@@ -429,9 +396,20 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
   // Custom header with history button
   const renderHeader = () => {
     return (
-      <PageHeader
+      <Header
         title="Forex Pip Calculator"
-        subtitle="Calculate the pip value of your trades"
+        onThemeToggle={toggleTheme}
+        rightComponent={
+          <TouchableOpacity
+            style={styles.historyButton}
+            onPress={() => navigation.navigate("History")}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <View style={styles.historyButtonInner}>
+              <MaterialIcons name="history" size={24} color={colors.primary} />
+            </View>
+          </TouchableOpacity>
+        }
       />
     );
   };
@@ -439,6 +417,7 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {renderHeader()}
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         scrollEnabled={true}
@@ -456,52 +435,153 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
       >
         <View style={styles.content}>
           {/* Currency Setup Card */}
-          <CalculatorCard
-            title="Currency Setup"
-            subtitle="Select your account currency and currency pair"
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: isDarkMode
+                  ? "rgba(45, 52, 65, 0.8)"
+                  : "rgba(255, 255, 255, 0.9)",
+                borderColor: isDarkMode
+                  ? colors.border + "30"
+                  : "rgba(230, 235, 240, 0.9)",
+              },
+            ]}
           >
-            <View>
-              <AccountCurrencySelector
-                value={currency}
-                onChange={setCurrency}
+            <LinearGradient
+              colors={getGradient("card").colors}
+              start={getGradient("card").start}
+              end={getGradient("card").end}
+              style={styles.cardContent}
+            >
+              <View style={styles.cardHeaderRow}>
+                <View
+                  style={[
+                    styles.iconContainer,
+                    { backgroundColor: colors.primary + "20" },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="monetization-on"
+                    size={24}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>
+                  Currency Setup
+                </Text>
+              </View>
+              <CurrencySelector
+                label="Account Currency"
+                selectedCurrency={accountCurrency}
+                onPress={() => setCurrencyModalVisible(true)}
               />
 
               <CurrencyPairSelector
                 label="Currency Pair"
-                selectedPair={currencyPair}
-                onSelect={(pair) => setCurrencyPair(pair)}
+                selectedPair={selectedPair}
+                onPress={() => setPairModalVisible(true)}
               />
-            </View>
-          </CalculatorCard>
+            </LinearGradient>
+          </View>
 
           {/* Position Size Card */}
-          <CalculatorCard
-            title="Position Size"
-            subtitle="Set your position size"
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: isDarkMode
+                  ? "rgba(45, 52, 65, 0.8)"
+                  : "rgba(255, 255, 255, 0.9)",
+                borderColor: isDarkMode
+                  ? colors.border + "30"
+                  : "rgba(230, 235, 240, 0.9)",
+              },
+            ]}
           >
-            <LotSizeSelector
-              label="Position Size"
-              lotType={lotType}
-              lotCount={lotCount}
-              customUnits={customUnits}
-              lotSizes={lotSizes}
-              onLotTypeChange={handleLotTypeChange}
-              onLotCountChange={handleLotCountChange}
-              onCustomUnitsChange={handleCustomUnitsChange}
-              onEditPress={() => setLotSizeEditorVisible(true)}
-            />
-          </CalculatorCard>
+            <LinearGradient
+              colors={getGradient("card").colors}
+              start={getGradient("card").start}
+              end={getGradient("card").end}
+              style={styles.cardContent}
+            >
+              <View style={styles.cardHeaderRow}>
+                <View
+                  style={[
+                    styles.iconContainer,
+                    { backgroundColor: colors.primary + "20" },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="account-balance"
+                    size={24}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>
+                  Position Size
+                </Text>
+              </View>
+              <LotSizeSelector
+                label="Position Size"
+                lotType={lotType}
+                lotCount={lotCount}
+                customUnits={customUnits}
+                lotSizes={lotSizes}
+                onLotTypeChange={handleLotTypeChange}
+                onLotCountChange={handleLotCountChange}
+                onCustomUnitsChange={handleCustomUnitsChange}
+                onEditPress={() => setLotSizeEditorVisible(true)}
+              />
+            </LinearGradient>
+          </View>
 
           {/* Pip Input Card */}
-          <CalculatorCard title="Pip Input" subtitle="Enter the number of pips">
-            <PipInput
-              value={pipCount}
-              onChange={handlePipCountChange}
-              onCalculatorPress={() => setPipCalculatorVisible(true)}
-              pipDecimalPlaces={pipDecimalPlaces}
-              onPipDecimalPlacesChange={handlePipDecimalPlacesChange}
-            />
-          </CalculatorCard>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: isDarkMode
+                  ? "rgba(45, 52, 65, 0.8)"
+                  : "rgba(255, 255, 255, 0.9)",
+                borderColor: isDarkMode
+                  ? colors.border + "30"
+                  : "rgba(230, 235, 240, 0.9)",
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={getGradient("card").colors}
+              start={getGradient("card").start}
+              end={getGradient("card").end}
+              style={styles.cardContent}
+            >
+              <View style={styles.cardHeaderRow}>
+                <View
+                  style={[
+                    styles.iconContainer,
+                    { backgroundColor: colors.primary + "20" },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="trending-up"
+                    size={24}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>
+                  Pip Value
+                </Text>
+              </View>
+              <PipInput
+                value={pipCount}
+                onChange={handlePipCountChange}
+                onCalculatorPress={() => setPipCalculatorVisible(true)}
+                pipDecimalPlaces={pipDecimalPlaces}
+                onPipDecimalPlacesChange={handlePipDecimalPlacesChange}
+              />
+            </LinearGradient>
+          </View>
 
           {/* Error Message */}
           {errorMessage && (
@@ -509,7 +589,7 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
               style={[
                 styles.errorContainer,
                 {
-                  backgroundColor: isDark
+                  backgroundColor: isDarkMode
                     ? "rgba(220, 53, 69, 0.12)"
                     : "rgba(255, 235, 238, 0.9)",
                   borderColor: colors.error + "40",
@@ -546,7 +626,7 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
           <View style={[styles.resultContainer]}>
             <ResultCard
               accountCurrency={accountCurrency}
-              currencyPair={currencyPair}
+              currencyPair={selectedPair}
               pipValueInQuoteCurrency={pipValueInQuoteCurrency}
               pipValueInAccountCurrency={pipValueInAccountCurrency}
               totalValueInQuoteCurrency={totalValueInQuoteCurrency}
@@ -643,7 +723,10 @@ const styles = StyleSheet.create({
     paddingBottom: 25,
     paddingTop: 10,
   },
-  content: {},
+  content: {
+    padding: 20,
+    paddingTop: 10,
+  },
   calculateButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -756,4 +839,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PipCalculator;
+export default CalculatorScreen;

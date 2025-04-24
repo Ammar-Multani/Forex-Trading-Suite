@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -18,19 +18,43 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useExchangeRates } from "../contexts/ExchangeRateContext";
 import { CURRENCY_PAIRS } from "../constants/currencies";
+import {
+  getCurrencyPairGroups,
+  getCurrencyPairsByGroup,
+} from "../constants/currencies";
 import { useTheme } from "../contexts/ThemeContext";
 
 export default function ExchangeRatesScreen() {
   const router = useRouter();
-  const { forexPairRates, isLoading, lastUpdated, refreshRates, error } =
-    useExchangeRates();
+  const {
+    forexPairRates,
+    isLoading,
+    lastUpdated,
+    refreshRates,
+    loadCurrencyPairs,
+    error,
+  } = useExchangeRates();
   const [refreshing, setRefreshing] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([
     "EURUSD",
     "GBPUSD",
     "USDJPY",
   ]);
+  const [selectedGroup, setSelectedGroup] = useState<string>("Major");
   const { isDark } = useTheme();
+
+  // Get available currency pair groups
+  const groups = getCurrencyPairGroups();
+
+  // Get all pairs in the selected group
+  const pairsInGroup = getCurrencyPairsByGroup(selectedGroup);
+  const pairCodes = pairsInGroup.map((pair) => pair.name.replace("/", ""));
+
+  // Load all required pairs at once - favorites and currently selected group
+  const loadRequiredPairs = useCallback(() => {
+    const allRequiredPairs = [...favorites, ...pairCodes];
+    loadCurrencyPairs(allRequiredPairs);
+  }, [favorites, pairCodes, loadCurrencyPairs]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -38,16 +62,34 @@ export default function ExchangeRatesScreen() {
     setRefreshing(false);
   };
 
+  // Load all required pairs when component mounts
+  useEffect(() => {
+    loadRequiredPairs();
+  }, [loadRequiredPairs]);
+
+  // Update when selected group changes
+  useEffect(() => {
+    // The loadRequiredPairs callback has dependence on pairCodes
+    // which changes when selectedGroup changes
+    loadRequiredPairs();
+  }, [selectedGroup]);
+
   const formatDate = (date: Date | null) => {
     if (!date) return "Never";
     return date.toLocaleString();
   };
 
   const toggleFavorite = (pair: string) => {
-    if (favorites.includes(pair)) {
-      setFavorites(favorites.filter((p) => p !== pair));
-    } else {
-      setFavorites([...favorites, pair]);
+    const newFavorites = favorites.includes(pair)
+      ? favorites.filter((p) => p !== pair)
+      : [...favorites, pair];
+
+    setFavorites(newFavorites);
+
+    // Since the API call is debounced in the context
+    // we don't need to worry about making unnecessary calls here
+    if (!favorites.includes(pair)) {
+      loadCurrencyPairs([pair]);
     }
   };
 
@@ -202,112 +244,95 @@ export default function ExchangeRatesScreen() {
           </View>
         )}
 
-        <View
-          style={[
-            styles.ratesContainer,
-            { backgroundColor: isDark ? "#1E1E1E" : "#fff" },
-          ]}
-        >
-          <View
-            style={[
-              styles.rateHeader,
-              { backgroundColor: isDark ? "#2A2A2A" : "#f0f0f0" },
-            ]}
+        {/* Group selection chips */}
+        <View style={styles.groupSelector}>
+          <Text
+            variant="titleMedium"
+            style={{ marginBottom: 12, color: isDark ? "#fff" : "#000" }}
           >
-            <Text variant="bodyMedium" style={{ fontWeight: "bold" }}>
-              Currency Pair
-            </Text>
-            <Text variant="bodyMedium" style={{ fontWeight: "bold" }}>
-              Rate
-            </Text>
-            <Text
-              variant="bodyMedium"
-              style={{ fontWeight: "bold", width: 40 }}
-            >
-              Fav
-            </Text>
-          </View>
-          <Divider
-            style={[
-              styles.divider,
-              {
-                backgroundColor: isDark
-                  ? "rgba(255, 255, 255, 0.1)"
-                  : "rgba(0, 0, 0, 0.1)",
-              },
-            ]}
-          />
-
-          {CURRENCY_PAIRS.map((pair) => {
-            const formattedPair = pair.replace("/", "");
-            const change = getRateChangeIndicator(formattedPair);
-            return (
-              <View key={formattedPair}>
-                <View style={styles.rateRow}>
-                  <Text variant="bodyMedium">{formattedPair}</Text>
-                  <View style={styles.rateValueContainer}>
-                    <Text
-                      variant="bodyMedium"
-                      style={{ color: "#6200ee", fontWeight: "bold" }}
-                    >
-                      {forexPairRates[formattedPair]
-                        ? forexPairRates[formattedPair].toFixed(4)
-                        : "Loading..."}
-                    </Text>
-                    <Ionicons
-                      name={change.icon}
-                      size={12}
-                      color={change.color}
-                      style={{ marginLeft: 4 }}
-                    />
-                  </View>
-                  <TouchableOpacity
-                    style={styles.favoriteButton}
-                    onPress={() => toggleFavorite(formattedPair)}
-                  >
-                    <Ionicons
-                      name={
-                        favorites.includes(formattedPair)
-                          ? "star"
-                          : "star-outline"
-                      }
-                      size={20}
-                      color={
-                        favorites.includes(formattedPair)
-                          ? "#FFC107"
-                          : isDark
-                          ? "#aaa"
-                          : "#666"
-                      }
-                    />
-                  </TouchableOpacity>
-                </View>
-                <Divider
-                  style={[
-                    styles.divider,
-                    {
-                      backgroundColor: isDark
-                        ? "rgba(255, 255, 255, 0.1)"
-                        : "rgba(0, 0, 0, 0.1)",
-                    },
-                  ]}
-                />
-              </View>
-            );
-          })}
+            Currency Groups
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {groups.map((group) => (
+              <Chip
+                key={group}
+                selected={selectedGroup === group}
+                onPress={() => setSelectedGroup(group)}
+                style={{ marginRight: 8, marginBottom: 8 }}
+                mode={selectedGroup === group ? "flat" : "outlined"}
+              >
+                {group}
+              </Chip>
+            ))}
+          </ScrollView>
         </View>
 
-        <View style={styles.infoContainer}>
-          <Chip icon="information" style={{ marginBottom: 8 }}>
-            Pull down to refresh rates
-          </Chip>
+        {/* Display currency pairs from selected group */}
+        <View style={styles.pairsSection}>
           <Text
-            variant="bodySmall"
-            style={{ color: isDark ? "#aaa" : "#666", textAlign: "center" }}
+            variant="titleMedium"
+            style={{ marginBottom: 12, color: isDark ? "#fff" : "#000" }}
           >
-            Exchange rates are updated every 15 minutes. Tap the star icon to
-            add or remove from favorites.
+            {selectedGroup} Pairs
           </Text>
+          {pairsInGroup.map((pairObj) => {
+            const pair = pairObj.name.replace("/", "");
+            const change = getRateChangeIndicator(pair);
+            const isFavorite = favorites.includes(pair);
+
+            return (
+              <Card
+                key={pair}
+                style={[
+                  styles.pairCard,
+                  { backgroundColor: isDark ? "#1E1E1E" : "#fff" },
+                ]}
+              >
+                <Card.Content>
+                  <View style={styles.pairCardContent}>
+                    <View>
+                      <Text
+                        variant="titleMedium"
+                        style={{ color: isDark ? "#fff" : "#000" }}
+                      >
+                        {pairObj.name}
+                      </Text>
+                      <View style={styles.changeContainer}>
+                        <Ionicons
+                          name={change.icon}
+                          size={16}
+                          color={change.color}
+                        />
+                        <Text style={{ color: change.color, marginLeft: 4 }}>
+                          {change.value}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.pairCardRight}>
+                      <Text
+                        variant="titleLarge"
+                        style={{ color: isDark ? "#fff" : "#000" }}
+                      >
+                        {forexPairRates[pair]
+                          ? forexPairRates[pair].toFixed(4)
+                          : "—"}
+                      </Text>
+                      <TouchableOpacity onPress={() => toggleFavorite(pair)}>
+                        <Ionicons
+                          name={isFavorite ? "star" : "star-outline"}
+                          size={20}
+                          color={
+                            isFavorite ? "#FFC107" : isDark ? "#777" : "#999"
+                          }
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </Card.Content>
+              </Card>
+            );
+          })}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -429,5 +454,25 @@ const styles = StyleSheet.create({
   retryText: {
     color: "#fff",
     marginLeft: 8,
+  },
+  groupSelector: {
+    marginBottom: 24,
+  },
+  pairsSection: {
+    marginBottom: 24,
+  },
+  pairCard: {
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  pairCardContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  pairCardRight: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 });

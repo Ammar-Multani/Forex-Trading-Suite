@@ -6,11 +6,8 @@ import React, {
   ReactNode,
 } from "react";
 import { Alert } from "react-native";
-import {
-  fetchExchangeRate,
-  fetchAllExchangeRates,
-  fetchForexPairRates,
-} from "../utils/api";
+import { fetchExchangeRate, fetchAllRequiredRates } from "../utils/api";
+import { CURRENCY_PAIRS } from "../constants/currencies";
 
 interface ExchangeRateContextType {
   getExchangeRate: (
@@ -22,6 +19,7 @@ interface ExchangeRateContextType {
   isLoading: boolean;
   lastUpdated: Date | null;
   refreshRates: () => Promise<void>;
+  loadCurrencyPairs: (pairs: string[]) => Promise<void>;
   error: string | null;
 }
 
@@ -32,6 +30,7 @@ const ExchangeRateContext = createContext<ExchangeRateContextType>({
   isLoading: false,
   lastUpdated: null,
   refreshRates: async () => {},
+  loadCurrencyPairs: async () => {},
   error: null,
 });
 
@@ -53,6 +52,14 @@ export const ExchangeRateProvider: React.FC<ExchangeRateProviderProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Track which currency pairs have been loaded to avoid redundant fetches
+  const [loadedPairs, setLoadedPairs] = useState<Set<string>>(new Set());
+  // Track pending pairs to load
+  const [pendingPairs, setPendingPairs] = useState<Set<string>>(new Set());
+  // Debounce timer to batch multiple requests
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(
+    null
+  );
 
   // Function to get exchange rate between two currencies
   const getExchangeRate = async (
@@ -92,37 +99,124 @@ export const ExchangeRateProvider: React.FC<ExchangeRateProviderProps> = ({
     }
   };
 
-  // Function to refresh all rates
+  // Function to load specific currency pairs - now adds to a queue
+  const loadCurrencyPairs = async (pairs: string[]) => {
+    if (pairs.length === 0) return;
+
+    // Filter out pairs that are already loaded or pending
+    const newPairs = pairs.filter(
+      (pair) => !loadedPairs.has(pair) && !pendingPairs.has(pair)
+    );
+
+    if (newPairs.length === 0) return;
+
+    // Add to pending pairs
+    setPendingPairs((prev) => {
+      const newSet = new Set(prev);
+      newPairs.forEach((pair) => newSet.add(pair));
+      return newSet;
+    });
+
+    // Debounce to batch requests
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+
+    const timer = setTimeout(() => {
+      fetchPendingPairs();
+    }, 300); // 300ms debounce
+
+    setDebounceTimer(timer);
+  };
+
+  // Function to fetch all pending pairs
+  const fetchPendingPairs = async () => {
+    if (pendingPairs.size === 0) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Convert pending pairs to array
+      const pairsToLoad = Array.from(pendingPairs);
+
+      // Essential base currencies for cross rates
+      const baseCurrencies = ["USD", "EUR", "GBP"];
+
+      // Fetch all required rates in one operation
+      const { crossRates, forexPairs } = await fetchAllRequiredRates(
+        baseCurrencies,
+        pairsToLoad
+      );
+
+      // Update rates
+      setRates((prev) => ({ ...prev, ...crossRates }));
+
+      // Update forex pair rates
+      setForexPairRates((prev) => ({ ...prev, ...forexPairs }));
+
+      // Mark as loaded
+      setLoadedPairs((prev) => {
+        const newSet = new Set(prev);
+        pairsToLoad.forEach((pair) => newSet.add(pair));
+        return newSet;
+      });
+
+      // Clear pending pairs
+      setPendingPairs(new Set());
+
+      // Update last updated timestamp
+      setLastUpdated(new Date());
+    } catch (error: any) {
+      console.error("Error loading currency pairs:", error);
+      const errorMessage =
+        error.message ||
+        "Failed to load currency pairs. Please check your internet connection and try again.";
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to refresh rates - now uses the unified API call
   const refreshRates = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Fetch common currency rates
+      // Essential base currencies
       const baseCurrencies = ["USD", "EUR", "GBP"];
-      const newRates: Record<string, Record<string, number>> = {};
 
-      for (const base of baseCurrencies) {
-        try {
-          const currencyRates = await fetchAllExchangeRates(base);
-          newRates[base] = currencyRates;
-        } catch (error) {
-          console.error(`Error fetching rates for ${base}:`, error);
-          throw error;
-        }
-      }
+      // Essential forex pairs
+      const essentialPairs = [
+        "EURUSD",
+        "GBPUSD",
+        "USDJPY",
+        "USDCHF",
+        "USDCAD",
+        "AUDUSD",
+      ];
 
-      // Fetch forex pair rates
-      let pairRates: Record<string, number> = {};
-      try {
-        pairRates = await fetchForexPairRates();
-      } catch (error) {
-        console.error("Error fetching forex pair rates:", error);
-        throw error;
-      }
+      // Fetch all in a single operation
+      const { crossRates, forexPairs } = await fetchAllRequiredRates(
+        baseCurrencies,
+        essentialPairs
+      );
 
-      setRates(newRates);
-      setForexPairRates(pairRates);
+      // Update rates
+      setRates(crossRates);
+
+      // Update forex pair rates
+      setForexPairRates((prev) => ({ ...prev, ...forexPairs }));
+
+      // Mark pairs as loaded
+      setLoadedPairs((prev) => {
+        const newSet = new Set(prev);
+        essentialPairs.forEach((pair) => newSet.add(pair));
+        return newSet;
+      });
+
+      // Update last updated timestamp
       setLastUpdated(new Date());
     } catch (error: any) {
       console.error("Error refreshing rates:", error);
@@ -135,6 +229,15 @@ export const ExchangeRateProvider: React.FC<ExchangeRateProviderProps> = ({
       setIsLoading(false);
     }
   };
+
+  // Clean up debounce timer
+  useEffect(() => {
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+    };
+  }, [debounceTimer]);
 
   // Initial fetch of rates
   useEffect(() => {
@@ -155,6 +258,7 @@ export const ExchangeRateProvider: React.FC<ExchangeRateProviderProps> = ({
         isLoading,
         lastUpdated,
         refreshRates,
+        loadCurrencyPairs,
         error,
       }}
     >

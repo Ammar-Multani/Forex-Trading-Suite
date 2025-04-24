@@ -8,160 +8,22 @@ import {
   StyleSheet,
   Image,
   TextInput,
-  Dimensions,
   StatusBar,
   SafeAreaView,
 } from "react-native";
 import { useTheme } from "../../contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
-
-// Currency types
-type CurrencyCode =
-  | "USD"
-  | "EUR"
-  | "GBP"
-  | "JPY"
-  | "AUD"
-  | "CAD"
-  | "CHF"
-  | "NZD"
-  | "CNY"
-  | "HKD"
-  | "SGD"
-  | "SEK"
-  | "NOK"
-  | "INR"
-  | "MXN"
-  | "BRL"
-  | "ZAR"
-  | "RUB"
-  | "TRY"
-  | "PLN"
-  | "KRW"
-  | "DKK";
-
-// Currency data with symbols and country codes
-const currencyData: Record<
-  CurrencyCode,
-  { name: string; symbol: string; countryCode: string }
-> = {
-  USD: {
-    name: "US Dollar",
-    symbol: "$",
-    countryCode: "us",
-  },
-  EUR: {
-    name: "Euro",
-    symbol: "€",
-    countryCode: "eu",
-  },
-  GBP: {
-    name: "British Pound",
-    symbol: "£",
-    countryCode: "gb",
-  },
-  JPY: {
-    name: "Japanese Yen",
-    symbol: "¥",
-    countryCode: "jp",
-  },
-  AUD: {
-    name: "Australian Dollar",
-    symbol: "A$",
-    countryCode: "au",
-  },
-  CAD: {
-    name: "Canadian Dollar",
-    symbol: "C$",
-    countryCode: "ca",
-  },
-  CHF: {
-    name: "Swiss Franc",
-    symbol: "Fr",
-    countryCode: "ch",
-  },
-  NZD: {
-    name: "New Zealand Dollar",
-    symbol: "NZ$",
-    countryCode: "nz",
-  },
-  CNY: {
-    name: "Chinese Yuan",
-    symbol: "¥",
-    countryCode: "cn",
-  },
-  HKD: {
-    name: "Hong Kong Dollar",
-    symbol: "HK$",
-    countryCode: "hk",
-  },
-  SGD: {
-    name: "Singapore Dollar",
-    symbol: "S$",
-    countryCode: "sg",
-  },
-  SEK: {
-    name: "Swedish Krona",
-    symbol: "kr",
-    countryCode: "se",
-  },
-  NOK: {
-    name: "Norwegian Krone",
-    symbol: "kr",
-    countryCode: "no",
-  },
-  INR: {
-    name: "Indian Rupee",
-    symbol: "₹",
-    countryCode: "in",
-  },
-  MXN: {
-    name: "Mexican Peso",
-    symbol: "Mex$",
-    countryCode: "mx",
-  },
-  BRL: {
-    name: "Brazilian Real",
-    symbol: "R$",
-    countryCode: "br",
-  },
-  ZAR: {
-    name: "South African Rand",
-    symbol: "R",
-    countryCode: "za",
-  },
-  RUB: {
-    name: "Russian Ruble",
-    symbol: "₽",
-    countryCode: "ru",
-  },
-  TRY: {
-    name: "Turkish Lira",
-    symbol: "₺",
-    countryCode: "tr",
-  },
-  PLN: {
-    name: "Polish Złoty",
-    symbol: "zł",
-    countryCode: "pl",
-  },
-  KRW: {
-    name: "South Korean Won",
-    symbol: "₩",
-    countryCode: "kr",
-  },
-  DKK: {
-    name: "Danish Krone",
-    symbol: "kr",
-    countryCode: "dk",
-  },
-};
+import {
+  currencies,
+  Currency,
+  filterCurrencies,
+} from "../../constants/currencies";
 
 interface CurrencyPickerModalProps {
   visible: boolean;
   onClose: () => void;
-  onSelect: (currency: CurrencyCode) => void;
-  selectedCurrency: CurrencyCode;
+  onSelect: (currency: Currency) => void;
+  selectedCurrency: string;
   title?: string;
 }
 
@@ -176,24 +38,13 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
 
   // Filter currencies based on search query
-  const filteredCurrencies = Object.entries(currencyData).filter(
-    ([code, data]) => {
-      const searchLower = searchQuery.toLowerCase();
-      return (
-        code.toLowerCase().includes(searchLower) ||
-        data.name.toLowerCase().includes(searchLower)
-      );
-    }
-  );
+  const filteredCurrencies = searchQuery
+    ? filterCurrencies(searchQuery)
+    : currencies;
 
   // Render each currency item
-  const renderCurrencyItem = ({
-    item,
-  }: {
-    item: [string, { name: string; symbol: string; countryCode: string }];
-  }) => {
-    const [code, data] = item;
-    const isSelected = selectedCurrency === code;
+  const renderCurrencyItem = ({ item }: { item: Currency }) => {
+    const isSelected = selectedCurrency === item.code;
 
     return (
       <TouchableOpacity
@@ -209,7 +60,7 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
           },
         ]}
         onPress={() => {
-          onSelect(code as CurrencyCode);
+          onSelect(item);
           onClose();
         }}
         activeOpacity={0.7}
@@ -217,14 +68,14 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
         <View style={styles.currencyItemLeft}>
           <Image
             source={{
-              uri: `https://flagcdn.com/w160/${data.countryCode.toLowerCase()}.png`,
+              uri: `https://flagcdn.com/w160/${item.countryCode.toLowerCase()}.png`,
             }}
             style={styles.flag}
             resizeMode="cover"
           />
           <View style={styles.currencyInfo}>
             <Text style={[styles.currencyCode, { color: theme.colors.text }]}>
-              {code}
+              {item.code}
             </Text>
             <Text
               style={[
@@ -232,7 +83,7 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
                 { color: theme.colors.onSurfaceVariant },
               ]}
             >
-              {data.name}
+              {item.name}
             </Text>
           </View>
         </View>
@@ -254,7 +105,7 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
               isSelected && { color: "#fff" },
             ]}
           >
-            {data.symbol}
+            {item.symbol}
           </Text>
         </View>
       </TouchableOpacity>
@@ -275,7 +126,7 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
           { backgroundColor: theme.colors.background },
         ]}
       >
-<StatusBar barStyle={isDark ? "light-content" : "light-content"} />
+        <StatusBar barStyle={isDark ? "light-content" : "light-content"} />
 
         {/* Header */}
         <View style={[styles.header, { backgroundColor: colors.primary }]}>
@@ -329,7 +180,7 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
         <FlatList
           data={filteredCurrencies}
           renderItem={renderCurrencyItem}
-          keyExtractor={([code]) => code}
+          keyExtractor={(item) => item.code}
           style={styles.list}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
@@ -455,4 +306,4 @@ const styles = StyleSheet.create({
 });
 
 export default CurrencyPickerModal;
-export { currencyData, type CurrencyCode };
+export { Currency };

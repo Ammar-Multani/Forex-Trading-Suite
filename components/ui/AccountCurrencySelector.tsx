@@ -1,15 +1,13 @@
 import React, { useState } from "react";
-import { View, StyleSheet, TouchableOpacity, Image, Text } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Image, Text, StatusBar } from "react-native";
 import { useTheme } from "../../contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
-import CurrencyPickerModal, {
-  currencyData,
-  CurrencyCode,
-} from "./CurrencyPickerModal";
+import CurrencyPickerModal from "./CurrencyPickerModal";
+import { Currency, getCurrencyByCode } from "../../constants/currencies";
 
 interface AccountCurrencySelectorProps {
-  value: CurrencyCode;
-  onChange: (value: CurrencyCode) => void;
+  value: string;
+  onChange: (value: string) => void;
   label?: string;
 }
 
@@ -21,27 +19,21 @@ export default function AccountCurrencySelector({
   const [modalVisible, setModalVisible] = useState(false);
   const { isDark } = useTheme();
 
-  // Get country code for flag
-  const getCountryCode = (currencyCode: string): string => {
-    return (currencyData as any)[currencyCode]?.countryCode || "us";
+  // Get currency details for the current value
+  const currencyDetails = getCurrencyByCode(value) || {
+    code: "USD",
+    name: "US Dollar",
+    symbol: "$",
+    countryCode: "US",
   };
 
-  // Get currency name
-  const getCurrencyName = (currencyCode: string): string => {
-    return (currencyData as any)[currencyCode]?.name || "US Dollar";
-  };
-
-  // Get currency symbol
-  const getCurrencySymbol = (currencyCode: string): string => {
-    return (currencyData as any)[currencyCode]?.symbol || "$";
-  };
-
-  const handleCurrencySelect = (currency: CurrencyCode) => {
-    onChange(currency);
+  const handleCurrencySelect = (currency: Currency) => {
+    onChange(currency.code);
     setModalVisible(false);
   };
 
   return (
+    
     <View style={styles.container}>
       <Text
         style={[
@@ -51,7 +43,7 @@ export default function AccountCurrencySelector({
       >
         {label}
       </Text>
-
+      
       <TouchableOpacity
         style={[
           styles.selector,
@@ -67,9 +59,7 @@ export default function AccountCurrencySelector({
           <View style={styles.flagContainer}>
             <Image
               source={{
-                uri: `https://flagcdn.com/w160/${getCountryCode(
-                  value
-                ).toLowerCase()}.png`,
+                uri: `https://flagcdn.com/w160/${currencyDetails.countryCode.toLowerCase()}.png`,
               }}
               style={styles.flag}
               resizeMode="cover"
@@ -87,7 +77,7 @@ export default function AccountCurrencySelector({
                 { color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)" },
               ]}
             >
-              {getCurrencyName(value)}
+              {currencyDetails.name}
             </Text>
           </View>
         </View>
@@ -103,7 +93,7 @@ export default function AccountCurrencySelector({
             ]}
           >
             <Text style={[styles.currencySymbol, { color: "#6200ee" }]}>
-              {getCurrencySymbol(value)}
+              {currencyDetails.symbol}
             </Text>
           </View>
           <Ionicons name="chevron-down" size={24} color="#6200ee" />

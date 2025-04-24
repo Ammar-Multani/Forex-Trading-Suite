@@ -13,6 +13,150 @@ const isCacheValid = (key: string): boolean => {
   return now - rateCache[key].timestamp < CACHE_EXPIRY;
 };
 
+// Maximum number of pairs per API call (TraderMade limit)
+const MAX_PAIRS_PER_REQUEST = 20;
+
+// Fetch all required rates in a single logical operation (may use multiple API calls if needed)
+export const fetchAllRequiredRates = async (
+  baseCurrencies: string[] = ["USD", "EUR", "GBP"],
+  specificPairs: string[] = []
+): Promise<{
+  crossRates: Record<string, Record<string, number>>;
+  forexPairs: Record<string, number>;
+}> => {
+  try {
+    // Check network connectivity
+    const netInfoState = await NetInfo.fetch();
+    if (!netInfoState.isConnected) {
+      throw new Error("No internet connection. Real-time rates unavailable.");
+    }
+
+    // First, check if all required data is in cache
+    const crossRates: Record<string, Record<string, number>> = {};
+    const forexPairs: Record<string, number> = {};
+    let allCached = true;
+
+    // Check if cross rates are cached
+    for (const base of baseCurrencies) {
+      crossRates[base] = {};
+      const quoteCurrencies = CURRENCIES.filter((curr) => curr !== base);
+
+      for (const quote of quoteCurrencies) {
+        const cacheKey = `${base}-${quote}`;
+        if (isCacheValid(cacheKey)) {
+          crossRates[base][quote] = rateCache[cacheKey].rate;
+        } else {
+          allCached = false;
+          break;
+        }
+      }
+
+      if (!allCached) break;
+    }
+
+    // Check if specific forex pairs are cached
+    for (const pair of specificPairs) {
+      if (isCacheValid(pair)) {
+        forexPairs[pair] = rateCache[pair].rate;
+      } else {
+        allCached = false;
+        break;
+      }
+    }
+
+    // If everything is cached, return the cached data
+    if (allCached) {
+      return { crossRates, forexPairs };
+    }
+
+    // Prepare all pairs we need to fetch
+    const allPairsToFetch: string[] = [];
+
+    // Add cross rates pairs
+    for (const base of baseCurrencies) {
+      const quoteCurrencies = CURRENCIES.filter((curr) => curr !== base);
+      for (const quote of quoteCurrencies) {
+        allPairsToFetch.push(`${base}${quote}`);
+      }
+    }
+
+    // Add specific forex pairs
+    specificPairs.forEach((pair) => {
+      if (!allPairsToFetch.includes(pair)) {
+        allPairsToFetch.push(pair);
+      }
+    });
+
+    // Deduplicate pairs
+    const uniquePairs = [...new Set(allPairsToFetch)];
+
+    // Batch API calls (TraderMade has a limit per request)
+    const responses: Record<string, number> = {};
+
+    for (let i = 0; i < uniquePairs.length; i += MAX_PAIRS_PER_REQUEST) {
+      const pairsBatch = uniquePairs.slice(i, i + MAX_PAIRS_PER_REQUEST);
+      const pairsString = pairsBatch.join(",");
+
+      const response = await fetch(
+        `https://marketdata.tradermade.com/api/v1/live?api_key=${env.traderMadeApiKey}&currency=${pairsString}`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `TraderMade API request failed with status ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+
+      if (!data || !data.quotes || !Array.isArray(data.quotes)) {
+        throw new Error("Invalid response format from TraderMade API");
+      }
+
+      // Process the response
+      data.quotes.forEach((quote: any) => {
+        if (quote && quote.base_currency && quote.quote_currency && quote.mid) {
+          const pair = `${quote.base_currency}${quote.quote_currency}`;
+          const rate = parseFloat(quote.mid.toString());
+
+          responses[pair] = rate;
+
+          // Update cache
+          rateCache[pair] = { rate, timestamp: Date.now() };
+
+          // Also update the cross-rate cache key
+          const cacheKey = `${quote.base_currency}-${quote.quote_currency}`;
+          rateCache[cacheKey] = { rate, timestamp: Date.now() };
+        }
+      });
+    }
+
+    // Organize response data
+    for (const base of baseCurrencies) {
+      crossRates[base] = {};
+      const quoteCurrencies = CURRENCIES.filter((curr) => curr !== base);
+
+      for (const quote of quoteCurrencies) {
+        const pair = `${base}${quote}`;
+        if (responses[pair]) {
+          crossRates[base][quote] = responses[pair];
+        }
+      }
+    }
+
+    for (const pair of specificPairs) {
+      if (responses[pair]) {
+        forexPairs[pair] = responses[pair];
+      }
+    }
+
+    return { crossRates, forexPairs };
+  } catch (error) {
+    console.error("Error fetching all required rates:", error);
+    throw error;
+  }
+};
+
 // Fetch exchange rate from API
 export const fetchExchangeRate = async (
   fromCurrency: string,
@@ -36,8 +180,6 @@ export const fetchExchangeRate = async (
       return rateCache[cacheKey].rate;
     }
 
-
-
     const response = await fetch(
       `https://marketdata.tradermade.com/api/v1/live?api_key=${env.traderMadeApiKey}&currency=${fromCurrency}${toCurrency}`
     );
@@ -49,7 +191,6 @@ export const fetchExchangeRate = async (
     }
 
     const data = await response.json();
-
 
     let rate: number | null = null;
 
@@ -65,8 +206,6 @@ export const fetchExchangeRate = async (
     if (rate === null) {
       throw new Error("Could not find exchange rate in API response");
     }
-
-
 
     // Cache the result
     rateCache[cacheKey] = { rate, timestamp: Date.now() };
@@ -89,8 +228,6 @@ export const fetchAllExchangeRates = async (
       throw new Error("No internet connection. Real-time rates unavailable.");
     }
 
-
-
     // Use the predefined list of currencies
     const quoteCurrencies = CURRENCIES.filter((curr) => curr !== baseCurrency);
 
@@ -110,7 +247,6 @@ export const fetchAllExchangeRates = async (
     }
 
     const data = await response.json();
-
 
     if (!data || !data.quotes || !Array.isArray(data.quotes)) {
       throw new Error("Invalid response format from TraderMade API");
@@ -140,7 +276,6 @@ export const fetchAllExchangeRates = async (
       throw new Error("No valid exchange rates found in the response");
     }
 
-
     return rates;
   } catch (error) {
     console.error("Error fetching all exchange rates:", error);
@@ -149,9 +284,9 @@ export const fetchAllExchangeRates = async (
 };
 
 // Fetch exchange rates for common forex pairs
-export const fetchForexPairRates = async (): Promise<
-  Record<string, number>
-> => {
+export const fetchForexPairRates = async (
+  pairsString?: string
+): Promise<Record<string, number>> => {
   try {
     // Check network connectivity
     const netInfoState = await NetInfo.fetch();
@@ -159,14 +294,11 @@ export const fetchForexPairRates = async (): Promise<
       throw new Error("No internet connection. Real-time rates unavailable.");
     }
 
-    // Use the predefined list of currency pairs
-    const forexPairs = CURRENCY_PAIRS;
-
-    // Format pairs for TraderMade API
-    const pairsString = forexPairs.join(",");
+    // Use provided pairs or default to predefined list
+    const forexPairsString = pairsString || CURRENCY_PAIRS.join(",");
 
     const response = await fetch(
-      `https://marketdata.tradermade.com/api/v1/live?api_key=${env.traderMadeApiKey}&currency=${pairsString}`
+      `https://marketdata.tradermade.com/api/v1/live?api_key=${env.traderMadeApiKey}&currency=${forexPairsString}`
     );
 
     if (!response.ok) {
@@ -176,7 +308,6 @@ export const fetchForexPairRates = async (): Promise<
     }
 
     const data = await response.json();
-
 
     if (!data || !data.quotes || !Array.isArray(data.quotes)) {
       throw new Error("Invalid response format from TraderMade API");
@@ -205,7 +336,6 @@ export const fetchForexPairRates = async (): Promise<
     if (Object.keys(rates).length === 0) {
       throw new Error("No valid forex pair rates found in the response");
     }
-
 
     return rates;
   } catch (error) {
