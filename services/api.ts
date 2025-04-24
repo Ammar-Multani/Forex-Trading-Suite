@@ -274,7 +274,7 @@ class ForexApiClient {
     );
 
     const response = await fetch(
-      `https://marketdata.tradermade.com/api/v1/live?api_key=${env.traderMadeApiKey}&currency=${pairsString}`
+      `https://marketdata.tradermade.com/api/v1/live?currency=${pairsString}&api_key=${env.traderMadeApiKey}`
     );
 
     if (!response.ok) {
@@ -296,10 +296,9 @@ class ForexApiClient {
     const rates: Record<string, number> = {};
 
     data.quotes.forEach((quote: any) => {
-      if (quote && quote.currency && (quote.mid || quote.price)) {
-        const pair = quote.currency;
-        const rate = parseFloat(quote.mid || quote.price);
-        rates[pair] = rate;
+      if (quote && quote.base_currency && quote.quote_currency && quote.mid) {
+        const pair = `${quote.base_currency}${quote.quote_currency}`;
+        rates[pair] = quote.mid;
       }
     });
 

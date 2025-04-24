@@ -1,76 +1,83 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme } from '../contexts/ThemeContext';
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  StatusBar,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { useTheme } from "../contexts/ThemeContext";
 
 // Calculator cards data
 const calculators = [
   {
-    id: 'compounding',
-    name: 'Compounding Calculator',
-    icon: 'trending-up',
-    description: 'Calculate compound growth over time',
-    color: ['#4158D0', '#C850C0'],
+    id: "compounding",
+    name: "Compounding Calculator",
+    icon: "trending-up",
+    description: "Calculate compound growth over time",
+    color: ["#4158D0", "#C850C0"],
   },
   {
-    id: 'fibonacci',
-    name: 'Fibonacci Calculator',
-    icon: 'git-network',
-    description: 'Calculate Fibonacci retracement levels',
-    color: ['#0093E9', '#80D0C7'],
+    id: "fibonacci",
+    name: "Fibonacci Calculator",
+    icon: "git-network",
+    description: "Calculate Fibonacci retracement levels",
+    color: ["#0093E9", "#80D0C7"],
   },
   {
-    id: 'pip-difference',
-    name: 'Pip Difference Calculator',
-    icon: 'swap-horizontal',
-    description: 'Calculate pip difference between prices',
-    color: ['#8EC5FC', '#E0C3FC'],
+    id: "pip-difference",
+    name: "Pip Difference Calculator",
+    icon: "swap-horizontal",
+    description: "Calculate pip difference between prices",
+    color: ["#8EC5FC", "#E0C3FC"],
   },
   {
-    id: 'pip-value',
-    name: 'Pip Calculator',
-    icon: 'calculator',
-    description: 'Calculate pip value in account currency',
-    color: ['#FF9A8B', '#FF6A88'],
+    id: "pip-value",
+    name: "Pip Calculator",
+    icon: "calculator",
+    description: "Calculate pip value in account currency",
+    color: ["#FF9A8B", "#FF6A88"],
   },
   {
-    id: 'pivot-points',
-    name: 'Pivot Points Calculator',
-    icon: 'analytics',
-    description: 'Calculate pivot points using various methods',
-    color: ['#A9C9FF', '#FFBBEC'],
+    id: "pivot-points",
+    name: "Pivot Points Calculator",
+    icon: "analytics",
+    description: "Calculate pivot points using various methods",
+    color: ["#FEE140", "#4ECDC4"],
   },
   {
-    id: 'position-size',
-    name: 'Position Size Calculator',
-    icon: 'resize',
-    description: 'Calculate optimal position size based on risk',
-    color: ['#21D4FD', '#B721FF'],
+    id: "position-size",
+    name: "Position Size Calculator",
+    icon: "resize",
+    description: "Calculate optimal position size based on risk",
+    color: ["#21D4FD", "#B721FF"],
   },
   {
-    id: 'profit-loss',
-    name: 'Profit/Loss Calculator',
-    icon: 'stats-chart',
-    description: 'Calculate potential profit or loss',
-    color: ['#FA8BFF', '#2BD2FF'],
+    id: "profit-loss",
+    name: "Profit/Loss Calculator",
+    icon: "stats-chart",
+    description: "Calculate potential profit or loss",
+    color: ["#FA8BFF", "#2BD2FF"],
   },
   {
-    id: 'margin',
-    name: 'Margin Calculator',
-    icon: 'wallet',
-    description: 'Calculate required margin for positions',
-    color: ['#08AEEA', '#2AF598'],
+    id: "margin",
+    name: "Required Margin Calculator",
+    icon: "wallet",
+    description: "Calculate required margin for positions",
+    color: ["#08AEEA", "#2AF598"],
   },
   {
-    id: 'stop-loss',
-    name: 'Stop Loss/Take Profit Calculator',
-    icon: 'options',
-    description: 'Calculate stop loss and take profit levels',
-    color: ['#FEE140', '#FA709A'],
+    id: "stop-loss",
+    name: "Stop Loss/Take Profit Calculator",
+    icon: "options",
+    description: "Calculate stop loss and take profit levels",
+    color: ["#FEE140", "#FA709A"],
   },
 ];
 
@@ -83,27 +90,43 @@ export default function Home() {
   };
 
   const navigateToSettings = () => {
-    router.push('/settings');
+    router.push("/settings");
   };
-  
+
   const navigateToExchangeRates = () => {
-    router.push('/exchange-rates');
+    router.push("/exchange-rates");
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f6f6f6' }]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: isDark ? "#121212" : "#f6f6f6" },
+      ]}
+    >
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>Forex Calculator Suite</Text>
-          <Text style={[styles.subtitle, { color: isDark ? '#aaa' : '#666' }]}>Professional trading tools</Text>
+          <Text style={[styles.title, { color: isDark ? "#fff" : "#000" }]}>
+            Forex Calculator Suite
+          </Text>
+          <Text style={[styles.subtitle, { color: isDark ? "#aaa" : "#666" }]}>
+            Professional trading tools
+          </Text>
         </View>
-        <TouchableOpacity onPress={navigateToSettings} style={styles.settingsButton}>
-          <Ionicons name="settings-outline" size={24} color={isDark ? '#fff' : '#000'} />
+        <TouchableOpacity
+          onPress={navigateToSettings}
+          style={styles.settingsButton}
+        >
+          <Ionicons
+            name="settings-outline"
+            size={24}
+            color={isDark ? "#fff" : "#000"}
+          />
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -127,7 +150,9 @@ export default function Home() {
                     <Ionicons name={calculator.icon} size={28} color="#fff" />
                   </View>
                   <Text style={styles.calculatorName}>{calculator.name}</Text>
-                  <Text style={styles.calculatorDescription}>{calculator.description}</Text>
+                  <Text style={styles.calculatorDescription}>
+                    {calculator.description}
+                  </Text>
                 </LinearGradient>
               </BlurView>
             </TouchableOpacity>
@@ -141,20 +166,20 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: "#121212",
   },
   header: {
     padding: 20,
     paddingBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
   headerContent: {
     flex: 1,
   },
   headerButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   headerButton: {
     padding: 4,
@@ -165,13 +190,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 26,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
     marginBottom: 5,
   },
   subtitle: {
     fontSize: 16,
-    color: '#aaa',
+    color: "#aaa",
   },
   scrollView: {
     flex: 1,
@@ -181,16 +206,16 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   calculatorsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
   calculatorCard: {
-    width: '48%',
+    width: "48%",
     height: 180,
     marginBottom: 15,
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 0.5,
     borderColor: "#ccc",
   },
@@ -200,27 +225,27 @@ const styles = StyleSheet.create({
   cardGradient: {
     flex: 1,
     padding: 15,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   iconContainer: {
     width: 50,
     height: 50,
     borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 10,
     borderWidth: 0.3,
     borderColor: "#ccc",
   },
   calculatorName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
     marginBottom: 5,
   },
   calculatorDescription: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: "rgba(255, 255, 255, 0.8)",
   },
 });

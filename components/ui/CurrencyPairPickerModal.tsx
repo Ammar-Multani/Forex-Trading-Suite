@@ -159,6 +159,14 @@ const CurrencyPairPickerModal: React.FC<CurrencyPairPickerModalProps> = ({
         </View>
 
         <View style={styles.pairDetails}>
+          {isSelected && (
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={colors.primary}
+              style={{ paddingLeft: 16 }}
+            />
+          )}
           <TouchableOpacity
             onPress={() => toggleFavorite(item.name)}
             style={styles.favoriteButton}
@@ -171,20 +179,6 @@ const CurrencyPairPickerModal: React.FC<CurrencyPairPickerModalProps> = ({
               }
             />
           </TouchableOpacity>
-
-          <Text
-            style={[styles.pipValue, { color: theme.colors.onSurfaceVariant }]}
-          >
-            {item.pipDecimalPlaces === 2 ? "0.01" : "0.0001"}
-          </Text>
-
-          {isSelected && (
-            <Ionicons
-              name="checkmark-circle"
-              size={20}
-              color={colors.primary}
-            />
-          )}
         </View>
       </TouchableOpacity>
     );

@@ -12,7 +12,7 @@ import PipCalculator from "../../components/calculators/PipCalculator";
 import PivotPointsCalculator from "../../components/calculators/PivotPointsCalculator";
 import PositionSizeCalculator from "../../components/calculators/PositionSizeCalculator";
 import ProfitLossCalculator from "../../components/calculators/ProfitLossCalculator";
-import MarginCalculator from "../../components/calculators/MarginCalculator";
+import MarginCalculator from "../../components/calculators/RequiredMarginCalculator";
 import StopLossTakeProfitCalculator from "../../components/calculators/StopLossTakeProfitCalculator";
 
 export default function CalculatorScreen() {

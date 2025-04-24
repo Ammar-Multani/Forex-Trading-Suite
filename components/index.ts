@@ -14,7 +14,7 @@ export { default as CalculatorModal } from "./ui/CalculatorModal";
 
 // Calculator Components
 export { default as PipCalculator } from "./calculators/PipCalculator";
-export { default as MarginCalculator } from "./calculators/MarginCalculator";
+export { default as MarginCalculator } from "./calculators/RequiredMarginCalculator";
 export { default as FibonacciCalculator } from "./calculators/FibonacciCalculator";
 export { default as ProfitLossCalculator } from "./calculators/ProfitLossCalculator";
 export { default as PivotPointsCalculator } from "./calculators/PivotPointsCalculator";

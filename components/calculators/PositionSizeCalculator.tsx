@@ -1,37 +1,47 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { TextInput, Divider } from 'react-native-paper';
-import { calculatePositionSize, formatCurrency } from '../../utils/calculators';
-import CalculatorCard from '../ui/CalculatorCard';
-import ResultDisplay from '../ui/ResultDisplay';
-import CurrencyPairSelector from '../ui/CurrencyPairSelector';
-import AccountCurrencySelector from '../ui/AccountCurrencySelector';
+import React, { useState, useEffect } from "react";
+import { View, StyleSheet } from "react-native";
+import { TextInput, Divider } from "react-native-paper";
+import { calculatePositionSize, formatCurrency } from "../../utils/calculators";
+import CalculatorCard from "../ui/CalculatorCard";
+import ResultDisplay from "../ui/ResultDisplay";
+import CurrencyPairSelector from "../ui/CurrencyPairSelector";
+import AccountCurrencySelector from "../ui/AccountCurrencySelector";
+import PageHeader from "../ui/PageHeader";
+import { useTheme } from "../../contexts/ThemeContext";
 
 export default function PositionSizeCalculator() {
   // State for inputs
-  const [accountCurrency, setAccountCurrency] = useState('USD');
-  const [currencyPair, setCurrencyPair] = useState('EUR/USD');
-  const [accountBalance, setAccountBalance] = useState('10000');
-  const [riskPercentage, setRiskPercentage] = useState('2');
-  const [entryPrice, setEntryPrice] = useState('1.2000');
-  const [stopLossPips, setStopLossPips] = useState('50');
-  
+  const { isDark } = useTheme();
+  const [accountCurrency, setAccountCurrency] = useState("USD");
+  const [currencyPair, setCurrencyPair] = useState("EUR/USD");
+  const [accountBalance, setAccountBalance] = useState("10000");
+  const [riskPercentage, setRiskPercentage] = useState("2");
+  const [entryPrice, setEntryPrice] = useState("1.2000");
+  const [stopLossPips, setStopLossPips] = useState("50");
+
   // State for results
   const [positionSize, setPositionSize] = useState(0);
   const [riskAmount, setRiskAmount] = useState(0);
   const [pipValue, setPipValue] = useState(0);
-  
+
   // Calculate results when inputs change
   useEffect(() => {
     calculateResults();
-  }, [accountCurrency, currencyPair, accountBalance, riskPercentage, entryPrice, stopLossPips]);
-  
+  }, [
+    accountCurrency,
+    currencyPair,
+    accountBalance,
+    riskPercentage,
+    entryPrice,
+    stopLossPips,
+  ]);
+
   const calculateResults = () => {
     const balance = parseFloat(accountBalance) || 0;
     const risk = parseFloat(riskPercentage) || 0;
     const entry = parseFloat(entryPrice) || 0;
     const stopLoss = parseFloat(stopLossPips) || 0;
-    
+
     if (balance > 0 && risk > 0 && entry > 0 && stopLoss > 0) {
       const result = calculatePositionSize(
         balance,
@@ -41,41 +51,53 @@ export default function PositionSizeCalculator() {
         currencyPair,
         accountCurrency
       );
-      
+
       setPositionSize(result.positionSize);
       setRiskAmount(result.riskAmount);
       setPipValue(result.pipValue);
     }
   };
-  
+
   return (
     <View style={styles.container}>
+      <PageHeader
+        title="Position Size Calculator"
+        subtitle="Calculate the size of your position based on your account balance, risk percentage, and stop loss"
+      />
       <CalculatorCard title="Position Size Calculator">
         <View style={styles.inputsContainer}>
           <AccountCurrencySelector
             value={accountCurrency}
             onChange={setAccountCurrency}
           />
-          
+
           <CurrencyPairSelector
-            value={currencyPair}
-            onChange={setCurrencyPair}
+            label="Currency Pair"
+            selectedPair={currencyPair}
+            onSelect={(pair) => setCurrencyPair(pair)}
           />
-          
+
           <TextInput
             label="Account Balance"
             value={accountBalance}
             onChangeText={setAccountBalance}
             keyboardType="numeric"
-            left={<TextInput.Affix text={accountCurrency === 'USD' ? '$' : ''} />}
+            left={
+              <TextInput.Affix text={accountCurrency === "USD" ? "$" : ""} />
+            }
             style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
+                mode="outlined"
+                outlineColor={isDark ? "#444" : "#ddd"}
+                activeOutlineColor="#6200ee"
+                textColor={isDark ? "#fff" : "#000"}
+                theme={{
+                  colors: {
+                    background: isDark ? "#2A2A2A" : "#f5f5f5",
+                    onSurfaceVariant: isDark ? "#aaa" : "#666",
+                  },
+                }}
+              />
+
           <TextInput
             label="Risk Percentage"
             value={riskPercentage}
@@ -83,42 +105,57 @@ export default function PositionSizeCalculator() {
             keyboardType="numeric"
             right={<TextInput.Affix text="%" />}
             style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
+                mode="outlined"
+                outlineColor={isDark ? "#444" : "#ddd"}
+                activeOutlineColor="#6200ee"
+                textColor={isDark ? "#fff" : "#000"}
+                theme={{
+                  colors: {
+                    background: isDark ? "#2A2A2A" : "#f5f5f5",
+                    onSurfaceVariant: isDark ? "#aaa" : "#666",
+                  },
+                }}
+              />
+
           <TextInput
             label="Entry Price"
             value={entryPrice}
             onChangeText={setEntryPrice}
             keyboardType="numeric"
             style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
-          
+                mode="outlined"
+                outlineColor={isDark ? "#444" : "#ddd"}
+                activeOutlineColor="#6200ee"
+                textColor={isDark ? "#fff" : "#000"}
+                theme={{
+                  colors: {
+                    background: isDark ? "#2A2A2A" : "#f5f5f5",
+                    onSurfaceVariant: isDark ? "#aaa" : "#666",
+                  },
+                }}
+              />
+
           <TextInput
             label="Stop Loss (Pips)"
             value={stopLossPips}
             onChangeText={setStopLossPips}
             keyboardType="numeric"
             style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
+                mode="outlined"
+                outlineColor={isDark ? "#444" : "#ddd"}
+                activeOutlineColor="#6200ee"
+                textColor={isDark ? "#fff" : "#000"}
+                theme={{
+                  colors: {
+                    background: isDark ? "#2A2A2A" : "#f5f5f5",
+                    onSurfaceVariant: isDark ? "#aaa" : "#666",
+                  },
+                }}
+              />
         </View>
-        
+
         <Divider style={styles.divider} />
-        
+
         <View style={styles.resultsContainer}>
           <ResultDisplay
             label="Recommended Position Size"
@@ -126,13 +163,13 @@ export default function PositionSizeCalculator() {
             color="#4CAF50"
             isLarge
           />
-          
+
           <ResultDisplay
             label="Risk Amount"
             value={formatCurrency(riskAmount, accountCurrency)}
             color="#FF5252"
           />
-          
+
           <ResultDisplay
             label="Pip Value"
             value={formatCurrency(pipValue, accountCurrency)}
@@ -153,10 +190,9 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 16,
-    backgroundColor: '#2A2A2A',
   },
   divider: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     marginVertical: 16,
   },
   resultsContainer: {

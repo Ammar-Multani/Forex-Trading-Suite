@@ -226,7 +226,7 @@ export default function SettingsScreen() {
           ]}
         >
           {renderSettingItem("bug-outline", "Report a bug", () =>
-            handleNavigation("/report-bug")
+            handleNavigation("/forex-test")
           )}
         </View>
 

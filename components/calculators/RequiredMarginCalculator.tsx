@@ -6,9 +6,12 @@ import CalculatorCard from '../ui/CalculatorCard';
 import ResultDisplay from '../ui/ResultDisplay';
 import CurrencyPairSelector from '../ui/CurrencyPairSelector';
 import AccountCurrencySelector from '../ui/AccountCurrencySelector';
+import { useTheme } from '../../contexts/ThemeContext';
+import PageHeader from '../ui/PageHeader';
 
 export default function MarginCalculator() {
   // State for inputs
+  const { isDark } = useTheme();
   const [accountCurrency, setAccountCurrency] = useState('USD');
   const [currencyPair, setCurrencyPair] = useState('EUR/USD');
   const [positionSize, setPositionSize] = useState('1');
@@ -42,7 +45,11 @@ export default function MarginCalculator() {
   
   return (
     <View style={styles.container}>
-      <CalculatorCard title="Margin Calculator">
+            <PageHeader
+        title="Required Margin Calculator"
+        subtitle="Calculate the margin required for a position"
+      />
+      <CalculatorCard title="Required Margin Calculator">
         <View style={styles.inputsContainer}>
           <AccountCurrencySelector
             value={accountCurrency}
@@ -50,8 +57,9 @@ export default function MarginCalculator() {
           />
           
           <CurrencyPairSelector
-            value={currencyPair}
-            onChange={setCurrencyPair}
+            label="Currency Pair"
+            selectedPair={currencyPair}
+            onSelect={(pair) => setCurrencyPair(pair)}
           />
           
           <TextInput
@@ -60,12 +68,17 @@ export default function MarginCalculator() {
             onChangeText={setPositionSize}
             keyboardType="numeric"
             style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
+                mode="outlined"
+                outlineColor={isDark ? "#444" : "#ddd"}
+                activeOutlineColor="#6200ee"
+                textColor={isDark ? "#fff" : "#000"}
+                theme={{
+                  colors: {
+                    background: isDark ? "#2A2A2A" : "#f5f5f5",
+                    onSurfaceVariant: isDark ? "#aaa" : "#666",
+                  },
+                }}
+              />
           
           <TextInput
             label="Leverage"
@@ -74,12 +87,17 @@ export default function MarginCalculator() {
             keyboardType="numeric"
             right={<TextInput.Affix text=":1" />}
             style={styles.input}
-            mode="outlined"
-            outlineColor="#444"
-            activeOutlineColor="#6200ee"
-            textColor="#fff"
-            theme={{ colors: { background: '#2A2A2A' } }}
-          />
+                mode="outlined"
+                outlineColor={isDark ? "#444" : "#ddd"}
+                activeOutlineColor="#6200ee"
+                textColor={isDark ? "#fff" : "#000"}
+                theme={{
+                  colors: {
+                    background: isDark ? "#2A2A2A" : "#f5f5f5",
+                    onSurfaceVariant: isDark ? "#aaa" : "#666",
+                  },
+                }}
+              />
         </View>
         
         <Divider style={styles.divider} />
@@ -112,7 +130,6 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 16,
-    backgroundColor: '#2A2A2A',
   },
   divider: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',

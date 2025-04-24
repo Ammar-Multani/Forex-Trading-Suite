@@ -23,7 +23,31 @@ import {
 } from "@/constants/currencies";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { fetchForexPairRates } from "@/services/api";
+import env from "@/config/env";
+
+// Interface for API response
+interface ExchangeRateResponse {
+  endpoint: string;
+  quotes: Array<{
+    ask: number;
+    bid: number;
+    mid: number;
+    base_currency: string;
+    quote_currency: string;
+  }>;
+  requested_time: string;
+  timestamp: number;
+}
+
+// Interface for exchange rate data
+interface ExchangeRateData {
+  bid: number;
+  ask: number;
+  mid: number;
+  timestamp: number;
+  loading: boolean;
+  error?: string;
+}
 
 interface CurrencyPairModalProps {
   onClose: () => void;
@@ -36,15 +60,17 @@ const CurrencyPairModal: React.FC<CurrencyPairModalProps> = ({
   onSelect,
   selectedPair,
 }) => {
-  const { colors, theme, getGradient } = useTheme();
-  const isDarkMode = theme === "dark";
+  const { colors, isDark } = useTheme();
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredPairs, setFilteredPairs] =
     useState<CurrencyPair[]>(currencyPairs);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showFavorites, setShowFavorites] = useState(false);
-  const [rateCache, setRateCache] = useState<Record<string, number>>({});
-  const [loadingRates, setLoadingRates] = useState(false);
+
+  // Store exchange rates data
+  const [exchangeRates, setExchangeRates] = useState<
+    Record<string, ExchangeRateData>
+  >({});
 
   // Sample favorites - in a real app, this would be stored in a context or persistence
   const [favorites, setFavorites] = useState<string[]>([
@@ -63,6 +89,72 @@ const CurrencyPairModal: React.FC<CurrencyPairModalProps> = ({
     borderRadius: 12,
     borderWidth: 1,
   };
+
+  // Fetch exchange rates for visible pairs
+  const fetchExchangeRates = useCallback(
+    async (pairs: CurrencyPair[]) => {
+      // Only fetch for up to 10 pairs at a time to avoid API limits
+      const pairsToFetch = pairs.slice(0, 10);
+      const pairCodes = pairsToFetch.map((pair) => `${pair.base}${pair.quote}`);
+
+      if (pairCodes.length === 0) return;
+
+      // Mark pairs as loading
+      const loadingUpdates: Record<string, ExchangeRateData> = {};
+      pairCodes.forEach((pairCode) => {
+        loadingUpdates[pairCode] = {
+          ...exchangeRates[pairCode],
+          loading: true,
+        };
+      });
+      setExchangeRates((prev) => ({ ...prev, ...loadingUpdates }));
+
+      try {
+        const pairsString = pairCodes.join(",");
+        const url = `https://marketdata.tradermade.com/api/v1/live?currency=${pairsString}&api_key=${env.traderMadeApiKey}`;
+
+        console.log(`[CurrencyPairModal] Fetching rates for: ${pairsString}`);
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(
+            `API returned ${response.status}: ${response.statusText}`
+          );
+        }
+
+        const data: ExchangeRateResponse = await response.json();
+
+        // Update exchange rates with fetched data
+        const updates: Record<string, ExchangeRateData> = {};
+        data.quotes.forEach((quote) => {
+          const pairCode = `${quote.base_currency}${quote.quote_currency}`;
+          updates[pairCode] = {
+            bid: quote.bid,
+            ask: quote.ask,
+            mid: quote.mid,
+            timestamp: data.timestamp,
+            loading: false,
+          };
+        });
+
+        setExchangeRates((prev) => ({ ...prev, ...updates }));
+      } catch (err) {
+        console.error("[CurrencyPairModal] Error fetching rates:", err);
+
+        // Mark pairs as error
+        const errorUpdates: Record<string, ExchangeRateData> = {};
+        pairCodes.forEach((pairCode) => {
+          errorUpdates[pairCode] = {
+            ...exchangeRates[pairCode],
+            loading: false,
+            error: err instanceof Error ? err.message : "Failed to fetch rates",
+          };
+        });
+        setExchangeRates((prev) => ({ ...prev, ...errorUpdates }));
+      }
+    },
+    [exchangeRates]
+  );
 
   // Update filtered pairs when search term changes
   useEffect(() => {
@@ -84,52 +176,25 @@ const CurrencyPairModal: React.FC<CurrencyPairModalProps> = ({
     }
 
     setFilteredPairs(result);
-  }, [searchTerm, selectedCategory, showFavorites, favorites]);
 
-  // Load exchange rates for visible pairs
-  useEffect(() => {
-    if (filteredPairs.length === 0) return;
-
-    const loadRates = async () => {
-      setLoadingRates(true);
-
-      try {
-        // Take only the first 15 pairs to avoid overloading
-        const pairsToLoad = filteredPairs.slice(0, 15);
-
-        // Format pairs for API
-        const pairCodes = pairsToLoad.map((pair) => pair.name.replace("/", ""));
-
-        // Only fetch rates we don't already have cached
-        const uncachedPairs = pairCodes.filter((pair) => !rateCache[pair]);
-
-        if (uncachedPairs.length > 0) {
-          // This single call will be batched by our API
-          const rates = await fetchForexPairRates(uncachedPairs);
-
-          // Update our cache with the new rates
-          setRateCache((prev) => ({
-            ...prev,
-            ...rates,
-          }));
-        }
-      } catch (error) {
-        console.error("Error loading currency pair rates:", error);
-      } finally {
-        setLoadingRates(false);
-      }
-    };
-
-    loadRates();
+    // Fetch rates for visible pairs
+    fetchExchangeRates(result.slice(0, 10));
   }, [
-    filteredPairs
-      .slice(0, 15)
-      .map((p) => p.name)
-      .join(),
+    searchTerm,
+    selectedCategory,
+    showFavorites,
+    favorites,
+    fetchExchangeRates,
   ]);
 
   // Handle pair selection
   const handleSelect = (pair: CurrencyPair) => {
+    // Make sure we have exchange rate data for this pair
+    const pairCode = `${pair.base}${pair.quote}`;
+    if (!exchangeRates[pairCode]) {
+      fetchExchangeRates([pair]);
+    }
+
     onSelect(pair);
     onClose();
   };
@@ -162,14 +227,31 @@ const CurrencyPairModal: React.FC<CurrencyPairModalProps> = ({
     [selectedCategory]
   );
 
+  // Format rate display
+  const formatRate = (
+    value: number | undefined,
+    decimalPlaces: number
+  ): string => {
+    if (value === undefined) return "-.----";
+    return value.toFixed(decimalPlaces);
+  };
+
+  // Get rate display color
+  const getRateColor = (rate: number | undefined): string => {
+    if (rate === undefined) return colors.text;
+    return colors.primary;
+  };
+
   // Render each currency pair item
   const renderPairItem = ({ item }: { item: CurrencyPair }) => {
     const isSelected = selectedPair.name === item.name;
     const baseCurrency = getCurrencyByCode(item.base);
     const quoteCurrency = getCurrencyByCode(item.quote);
     const isFavorite = favorites.includes(item.name);
-    const pairCode = item.name.replace("/", "");
-    const rate = rateCache[pairCode];
+
+    // Get exchange rate data
+    const pairCode = `${item.base}${item.quote}`;
+    const rateData = exchangeRates[pairCode];
 
     return (
       <TouchableOpacity
@@ -210,16 +292,27 @@ const CurrencyPairModal: React.FC<CurrencyPairModalProps> = ({
           <Text style={[styles.pairName, { color: colors.text }]}>
             {item.name}
           </Text>
-          <Text style={[styles.pairDescription, { color: colors.subtext }]}>
+          <Text style={[styles.pairDescription, { color: colors.text + "99" }]}>
             {baseCurrency?.name} / {quoteCurrency?.name}
           </Text>
-          {rate !== undefined && (
-            <View style={styles.rateContainer}>
-              <Text style={[styles.rateText, { color: colors.success }]}>
-                {rate.toFixed(item.pipDecimalPlaces)}
+
+          {/* Show exchange rate */}
+          <View style={styles.rateContainer}>
+            {rateData?.loading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : rateData?.error ? (
+              <Text style={styles.rateError}>Error loading rate</Text>
+            ) : (
+              <Text
+                style={[
+                  styles.rateValue,
+                  { color: getRateColor(rateData?.mid) },
+                ]}
+              >
+                {formatRate(rateData?.mid, item.pipDecimalPlaces)}
               </Text>
-            </View>
-          )}
+            )}
+          </View>
         </View>
         <View style={styles.pairRight}>
           <TouchableOpacity
@@ -229,7 +322,7 @@ const CurrencyPairModal: React.FC<CurrencyPairModalProps> = ({
             <MaterialIcons
               name={isFavorite ? "star" : "star-outline"}
               size={24}
-              color={isFavorite ? colors.primary : colors.subtext}
+              color={isFavorite ? colors.primary : colors.text + "66"}
             />
           </TouchableOpacity>
           {isSelected && (
@@ -249,11 +342,11 @@ const CurrencyPairModal: React.FC<CurrencyPairModalProps> = ({
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <LinearGradient
-        colors={getGradient("primary").colors}
-        start={getGradient("primary").start}
-        end={getGradient("primary").end}
+        colors={["#6366F1", "#4F46E5"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
         style={[styles.header]}
       >
         <TouchableOpacity
@@ -280,7 +373,7 @@ const CurrencyPairModal: React.FC<CurrencyPairModalProps> = ({
         <TextInput
           style={[styles.searchInput, { color: colors.text }]}
           placeholder="Search currency pairs..."
-          placeholderTextColor={colors.placeholder}
+          placeholderTextColor={colors.text + "66"}
           value={searchTerm}
           onChangeText={setSearchTerm}
           autoCapitalize="none"
@@ -293,19 +386,10 @@ const CurrencyPairModal: React.FC<CurrencyPairModalProps> = ({
             activeOpacity={0.7}
             style={styles.clearButton}
           >
-            <MaterialIcons name="cancel" size={20} color={colors.placeholder} />
+            <MaterialIcons name="cancel" size={20} color={colors.text + "66"} />
           </TouchableOpacity>
         )}
       </View>
-
-      {loadingRates && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.subtext }]}>
-            Loading rates...
-          </Text>
-        </View>
-      )}
 
       <View
         style={{
@@ -421,28 +505,16 @@ const CurrencyPairModal: React.FC<CurrencyPairModalProps> = ({
         windowSize={10}
         removeClippedSubviews={Platform.OS !== "ios"}
         getItemLayout={(data, index) => ({
-          length: 86, // height of item + vertical margin/padding
-          offset: 86 * index,
+          length: 96, // height of item + vertical margin/padding
+          offset: 96 * index,
           index,
         })}
         keyboardShouldPersistTaps="handled"
+        // Load more exchange rates when end reached
         onEndReached={() => {
-          // Load more rates if we have visible items without rates
-          const visiblePairs = filteredPairs.slice(0, 30);
-          const pairCodes = visiblePairs.map((pair) =>
-            pair.name.replace("/", "")
-          );
-          const uncachedPairs = pairCodes.filter((pair) => !rateCache[pair]);
-
-          if (uncachedPairs.length > 0) {
-            fetchForexPairRates(uncachedPairs)
-              .then((rates) => {
-                setRateCache((prev) => ({
-                  ...prev,
-                  ...rates,
-                }));
-              })
-              .catch(console.error);
+          const visiblePairs = filteredPairs.slice(10, 20);
+          if (visiblePairs.length > 0) {
+            fetchExchangeRates(visiblePairs);
           }
         }}
         onEndReachedThreshold={0.5}
@@ -508,10 +580,10 @@ const styles = StyleSheet.create({
   pairName: {
     fontSize: 16,
     fontWeight: "bold",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   pairDescription: {
-    fontSize: 14,
+    fontSize: 13,
     flexWrap: "wrap",
     maxWidth: "100%",
   },
@@ -596,21 +668,17 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   rateContainer: {
-    marginTop: 2,
-  },
-  rateText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  loadingContainer: {
-    flexDirection: "row",
+    marginTop: 5,
+    height: 20,
     justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 8,
   },
-  loadingText: {
-    marginLeft: 8,
+  rateValue: {
     fontSize: 14,
+    fontWeight: "bold",
+  },
+  rateError: {
+    fontSize: 12,
+    color: "#d32f2f",
   },
 });
 

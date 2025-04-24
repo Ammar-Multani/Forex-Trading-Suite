@@ -100,7 +100,7 @@ function getCalculatorTitle(id: string | string[] | undefined): string {
     "pivot-points": "Pivot Points Calculator",
     "position-size": "Position Size Calculator",
     "profit-loss": "Profit/Loss Calculator",
-    margin: "Margin Calculator",
+    margin: "RequiredMargin Calculator",
     "stop-loss": "Stop Loss/Take Profit Calculator",
   };
 

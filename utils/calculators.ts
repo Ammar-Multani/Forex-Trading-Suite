@@ -203,7 +203,13 @@ export function calculatePivotPoints(
   high: number,
   low: number,
   close: number,
-  method: "standard" | "woodie" | "camarilla" | "demark" = "standard"
+  method:
+    | "standard"
+    | "woodie"
+    | "camarilla"
+    | "demark"
+    | "fibonacci" = "standard",
+  open?: number
 ): {
   pivot: number;
   resistance: number[];
@@ -244,7 +250,23 @@ export function calculatePivotPoints(
       support[2] = close - ((high - low) * 1.1) / 4;
       break;
 
+    case "fibonacci":
+      pivot = (high + low + close) / 3;
+      // Fibonacci ratios: 0.382, 0.618, 1.000
+      const range = high - low;
+      resistance[0] = pivot + 0.382 * range;
+      resistance[1] = pivot + 0.618 * range;
+      resistance[2] = pivot + 1.0 * range;
+      support[0] = pivot - 0.382 * range;
+      support[1] = pivot - 0.618 * range;
+      support[2] = pivot - 1.0 * range;
+      break;
+
     case "demark":
+      // Make sure open price is available for DeMark method
+      if (open === undefined) {
+        open = close; // Fallback if open price is not provided
+      }
       const x = close > open ? high + 2 * low + close : 2 * high + low + close;
       pivot = x / 4;
       resistance[0] = x / 2 - low;

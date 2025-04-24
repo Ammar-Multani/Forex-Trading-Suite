@@ -1,10 +1,15 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  Alert,
+  Share,
+  Modal,
+  FlatList,
+  Animated,
 } from "react-native";
 import {
   TextInput,
@@ -17,19 +22,20 @@ import {
   Button,
   Surface,
   Menu,
-  useTheme as usePaperTheme,
+  Portal,
+  Dialog,
 } from "react-native-paper";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { calculatePivotPoints } from "../../utils/calculators";
 import CalculatorCard from "../ui/CalculatorCard";
 import { useTheme } from "../../contexts/ThemeContext";
 import PageHeader from "../ui/PageHeader";
-import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Get the screen width for animations
 const { width } = Dimensions.get("window");
 
-type PivotMethod = "standard" | "woodie" | "camarilla" | "demark";
+type PivotMethod = "standard" | "woodie" | "camarilla" | "demark" | "fibonacci";
 
 // Method descriptions for information
 const METHOD_INFO = {
@@ -37,11 +43,12 @@ const METHOD_INFO = {
   woodie: "Gives more weight to the closing price with (H+L+2C)/4.",
   camarilla: "Uses more levels with tighter ranges for day trading.",
   demark: "Based on whether close is higher or lower than open price.",
+  fibonacci:
+    "Uses Fibonacci ratios (0.382, 0.618, 1.000, 1.618) to calculate support and resistance levels.",
 };
 
 export default function PivotPointsCalculator() {
   const { isDark } = useTheme();
-  const paperTheme = usePaperTheme();
 
   // State for inputs
   const [highPrice, setHighPrice] = useState("1.2000");
@@ -51,38 +58,19 @@ export default function PivotPointsCalculator() {
   const [method, setMethod] = useState<PivotMethod>("standard");
   const [showMethodInfo, setShowMethodInfo] = useState(false);
 
-  // Define theme colors for 2025 design
-  const colors = {
-    primary: "#6200ee",
-    secondary: "#03DAC6",
-    error: "#CF6679",
-    accent: "#8F44FD",
-    accentLight: isDark
-      ? "rgba(143, 68, 253, 0.15)"
-      : "rgba(143, 68, 253, 0.08)",
-    success: "#00C853",
-    warning: "#FFD600",
-    surface: isDark ? "#121212" : "#FFFFFF",
-    surfaceVariant: isDark ? "#1E1E1E" : "#F5F5F5",
-    surfaceElevated: isDark ? "#242424" : "#FFFFFF",
-    cardGradient: isDark ? ["#1E1E1E", "#242424"] : ["#FFFFFF", "#F5F5F5"],
-    text: isDark ? "#FFFFFF" : "#000000",
-    textSecondary: isDark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.6)",
-    textTertiary: isDark ? "rgba(255, 255, 255, 0.5)" : "rgba(0, 0, 0, 0.38)",
-    border: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
-    divider: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)",
-  };
-
   // State for results
   const [pivot, setPivot] = useState(0);
-  const [resistance, setResistance] = useState<number[]>([0, 0, 0, 0]);
-  const [support, setSupport] = useState<number[]>([0, 0, 0, 0]);
+  const [resistance, setResistance] = useState<number[]>([0, 0, 0]);
+  const [support, setSupport] = useState<number[]>([0, 0, 0]);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [calculationError, setCalculationError] = useState<string | null>(null);
 
   // State for filter and organization
   const [historyFilterOpen, setHistoryFilterOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<"all" | "favorites">(
     "all"
   );
+  const [isLoading, setIsLoading] = useState(true);
 
   // History of calculations
   const [history, setHistory] = useState<
@@ -97,51 +85,100 @@ export default function PivotPointsCalculator() {
     }>
   >([]);
 
+  // Add a state for expanded history
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+
+  // New state for dropdown
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownButtonRef = useRef<View>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+  });
+  const animatedValue = useRef(new Animated.Value(0)).current;
+
+  // Load history from storage
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const loadHistory = async () => {
+    try {
+      setIsLoading(true);
+      const savedHistory = await AsyncStorage.getItem("pivotPointsHistory");
+      if (savedHistory) {
+        // Parse the saved history and convert timestamp strings back to Date objects
+        const parsedHistory = JSON.parse(savedHistory).map((item: any) => ({
+          ...item,
+          timestamp: new Date(item.timestamp),
+        }));
+        setHistory(parsedHistory);
+      }
+    } catch (error) {
+      console.error("Failed to load history:", error);
+      // Show error alert
+      Alert.alert(
+        "Error",
+        "Failed to load calculation history. Your previous calculations may not be available.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Save history to storage
+  const saveHistoryToStorage = async (newHistory: any[]) => {
+    try {
+      await AsyncStorage.setItem(
+        "pivotPointsHistory",
+        JSON.stringify(newHistory)
+      );
+    } catch (error) {
+      console.error("Failed to save history:", error);
+    }
+  };
+
   // Calculate results when inputs change
   useEffect(() => {
     calculateResults();
   }, [highPrice, lowPrice, closePrice, openPrice, method]);
 
   const calculateResults = useCallback(() => {
-    const high = parseFloat(highPrice) || 0;
-    const low = parseFloat(lowPrice) || 0;
-    const close = parseFloat(closePrice) || 0;
-    const open = parseFloat(openPrice) || 0;
+    try {
+      setIsCalculating(true);
+      setCalculationError(null);
 
-    if (high > 0 && low > 0 && close > 0) {
+      const high = parseFloat(highPrice) || 0;
+      const low = parseFloat(lowPrice) || 0;
+      const close = parseFloat(closePrice) || 0;
+      const open = parseFloat(openPrice) || 0;
+
+      // Validate inputs
+      if (high <= 0 || low <= 0 || close <= 0) {
+        return; // Silent return for empty/invalid inputs
+      }
+
+      if (high < low) {
+        setCalculationError("High price must be greater than low price");
+        return;
+      }
+
       const result = calculatePivotPoints(high, low, close, method, open);
 
       setPivot(result.pivot);
       setResistance(result.resistance);
       setSupport(result.support);
-
-      // Add to history (only if values are valid)
-      if (result.pivot > 0) {
-        const newEntry = {
-          method,
-          high: highPrice,
-          low: lowPrice,
-          close: closePrice,
-          pivot: result.pivot,
-          timestamp: new Date(),
-          isFavorite: false,
-        };
-
-        // Check if this calculation is already in history
-        const exists = history.some(
-          (item) =>
-            item.method === newEntry.method &&
-            item.high === newEntry.high &&
-            item.low === newEntry.low &&
-            item.close === newEntry.close
-        );
-
-        if (!exists) {
-          setHistory((prev) => [newEntry, ...prev].slice(0, 10)); // Keep last 10 entries
-        }
-      }
+    } catch (error) {
+      console.error("Error calculating pivot points:", error);
+      setCalculationError(
+        "Failed to calculate pivot points. Please check your inputs."
+      );
+    } finally {
+      setIsCalculating(false);
     }
-  }, [highPrice, lowPrice, closePrice, openPrice, method, history]);
+  }, [highPrice, lowPrice, closePrice, openPrice, method]);
 
   const saveToHistory = () => {
     const high = parseFloat(highPrice) || 0;
@@ -169,13 +206,55 @@ export default function PivotPointsCalculator() {
       );
 
       if (!exists) {
-        setHistory((prev) => [newEntry, ...prev].slice(0, 10)); // Keep last 10 entries
+        const newHistory = [newEntry, ...history].slice(0, 20); // Keep last 20 entries
+        setHistory(newHistory);
+        saveHistoryToStorage(newHistory);
+
+        // Show success message
+        Alert.alert("Saved", "Calculation saved to history", [{ text: "OK" }], {
+          cancelable: true,
+        });
+      } else {
+        // Show already exists message
+        Alert.alert(
+          "Already Saved",
+          "This calculation already exists in your history",
+          [{ text: "OK" }],
+          { cancelable: true }
+        );
       }
+    } else {
+      // Show invalid input message
+      Alert.alert(
+        "Invalid Input",
+        "Please enter valid price values before saving",
+        [{ text: "OK" }],
+        { cancelable: true }
+      );
     }
   };
 
   const clearHistory = () => {
-    setHistory([]);
+    // Show confirmation before clearing
+    Alert.alert(
+      "Clear History",
+      "Are you sure you want to clear all calculation history?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: () => {
+            setHistory([]);
+            saveHistoryToStorage([]);
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   const formatPrice = (price: number) => {
@@ -204,7 +283,6 @@ export default function PivotPointsCalculator() {
   const copyToClipboard = (text: string) => {
     // In a real app, you would use Clipboard.setString(text)
     console.log("Copied to clipboard:", text);
-    // Show a toast or some feedback
   };
 
   const getMethodLabel = (methodName: PivotMethod) => {
@@ -217,35 +295,227 @@ export default function PivotPointsCalculator() {
         return "Camarilla";
       case "demark":
         return "DeMark";
+      case "fibonacci":
+        return "Fibonacci";
       default:
         return methodName;
     }
   };
 
   const toggleFavorite = (index: number) => {
-    setHistory((prev) => {
-      const newHistory = [...prev];
-      newHistory[index] = {
-        ...newHistory[index],
-        isFavorite: !newHistory[index].isFavorite,
-      };
-      return newHistory;
-    });
+    const newHistory = [...history];
+    newHistory[index] = {
+      ...newHistory[index],
+      isFavorite: !newHistory[index].isFavorite,
+    };
+    setHistory(newHistory);
+    saveHistoryToStorage(newHistory);
   };
 
   const deleteHistoryItem = (index: number) => {
-    setHistory((prev) => {
-      const newHistory = [...prev];
-      newHistory.splice(index, 1);
-      return newHistory;
-    });
+    // Show confirmation before deleting
+    Alert.alert(
+      "Delete Item",
+      "Are you sure you want to delete this calculation?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            const newHistory = [...history];
+            newHistory.splice(index, 1);
+            setHistory(newHistory);
+            saveHistoryToStorage(newHistory);
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
-  // Filter history based on selected filter
+  // Load a saved calculation
+  const loadCalculation = (item: any) => {
+    setMethod(item.method);
+    setHighPrice(item.high);
+    setLowPrice(item.low);
+    setClosePrice(item.close);
+
+    // Scroll to top of calculator
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: true });
+    }
+  };
+
+  const scrollViewRef = React.useRef<ScrollView>(null);
+
+  // Filter history based on selected filter and expansion state
   const filteredHistory =
     historyFilter === "favorites"
       ? history.filter((item) => item.isFavorite)
       : history;
+
+  // Get the history to display based on expansion state
+  const displayedHistory = isHistoryExpanded
+    ? filteredHistory
+    : filteredHistory.slice(0, 3); // Show only first 3 items when collapsed
+
+  // New function to share calculation
+  const shareCalculation = async (item: any) => {
+    try {
+      const method = getMethodLabel(item.method);
+      const message = `Forex Pivot Points (${method})
+High: ${item.high}
+Low: ${item.low} 
+Close: ${item.close}
+Pivot: ${formatPrice(item.pivot)}
+R1: ${formatPrice(resistance[0])}
+S1: ${formatPrice(support[0])}
+`;
+
+      await Share.share({
+        message,
+        title: "Pivot Points Calculation",
+      });
+    } catch (error) {
+      console.error("Error sharing calculation:", error);
+      Alert.alert("Error", "Failed to share calculation");
+    }
+  };
+
+  // New function to share the current calculation
+  const shareCurrentCalculation = async () => {
+    try {
+      const message = `Forex Pivot Points (${getMethodLabel(method)})
+High: ${highPrice}
+Low: ${lowPrice} 
+Close: ${closePrice}
+Pivot: ${formatPrice(pivot)}
+R1: ${formatPrice(resistance[0])}
+S1: ${formatPrice(support[0])}
+R2: ${formatPrice(resistance[1])}
+S2: ${formatPrice(support[1])}
+R3: ${formatPrice(resistance[2])}
+S3: ${formatPrice(support[2])}
+`;
+
+      await Share.share({
+        message,
+        title: "Pivot Points Calculation",
+      });
+    } catch (error) {
+      console.error("Error sharing calculation:", error);
+      Alert.alert("Error", "Failed to share calculation");
+    }
+  };
+
+  // Measure dropdown button position
+  const measureDropdownButton = () => {
+    if (dropdownButtonRef.current) {
+      dropdownButtonRef.current.measure((x, y, width, height, pageX, pageY) => {
+        setDropdownPosition({
+          top: pageY + height,
+          left: pageX,
+          width: width,
+        });
+      });
+    }
+  };
+
+  // Toggle dropdown
+  const toggleDropdown = () => {
+    if (!isDropdownOpen) {
+      measureDropdownButton();
+      setIsDropdownOpen(true);
+      Animated.timing(animatedValue, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(animatedValue, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        setIsDropdownOpen(false);
+      });
+    }
+  };
+
+  const closeDropdown = () => {
+    Animated.timing(animatedValue, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setIsDropdownOpen(false);
+    });
+  };
+
+  const selectMethod = (selectedMethod: PivotMethod) => {
+    setMethod(selectedMethod);
+    closeDropdown();
+  };
+
+  // Animations
+  const dropdownOpacity = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const dropdownScale = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.95, 1],
+  });
+
+  const dropdownTranslateY = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-10, 0],
+  });
+
+  // Available methods
+  const methodOptions: PivotMethod[] = [
+    "standard",
+    "woodie",
+    "camarilla",
+    "demark",
+    "fibonacci",
+  ];
+
+  // Render dropdown item
+  const renderDropdownItem = ({ item }: { item: PivotMethod }) => (
+    <TouchableOpacity
+      style={[
+        styles.dropdownItem,
+        item === method && {
+          backgroundColor: isDark
+            ? "rgba(98, 0, 238, 0.2)"
+            : "rgba(98, 0, 238, 0.1)",
+        },
+      ]}
+      onPress={() => selectMethod(item)}
+    >
+      <Text
+        style={[
+          styles.dropdownItemText,
+          { color: isDark ? "#fff" : "#000" },
+          item === method && {
+            color: "#6200ee",
+            fontWeight: "bold",
+          },
+        ]}
+      >
+        {getMethodLabel(item)}
+      </Text>
+      {item === method && (
+        <MaterialIcons name="check" color="#6200ee" size={18} />
+      )}
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -254,67 +524,194 @@ export default function PivotPointsCalculator() {
         subtitle="Calculate support and resistance levels for trading"
       />
       <CalculatorCard title="Calculate Pivot Points">
-        <ScrollView style={styles.scrollView}>
+        <ScrollView style={styles.scrollView} ref={scrollViewRef}>
           <View style={styles.methodSelectorContainer}>
             <View style={styles.methodHeader}>
               <Text
-                variant="labelLarge"
+                variant="titleSmall"
                 style={{
-                  color: colors.textSecondary,
-                  letterSpacing: 0.5,
+                  marginBottom: 0,
+                  color: isDark ? "#aaa" : "#666",
+                  fontWeight: "600",
+                  left: 5,
                 }}
               >
-                CALCULATION METHOD
+                Calculation Method
               </Text>
               <IconButton
                 icon="information-outline"
                 size={20}
                 onPress={() => setShowMethodInfo(!showMethodInfo)}
-                iconColor={colors.accent}
-                style={{
-                  backgroundColor: colors.accentLight,
-                  borderRadius: 12,
-                }}
+                iconColor={isDark ? "#fff" : "#000"}
               />
             </View>
 
-            <View style={styles.methodButtonsContainer}>
-              {(
-                ["standard", "woodie", "camarilla", "demark"] as PivotMethod[]
-              ).map((methodType) => (
-                <TouchableOpacity
-                  key={methodType}
-                  onPress={() => setMethod(methodType)}
-                  style={[
-                    styles.methodButton,
-                    {
-                      backgroundColor:
-                        method === methodType
-                          ? colors.accentLight
-                          : isDark
-                          ? "rgba(255, 255, 255, 0.05)"
-                          : "rgba(0, 0, 0, 0.03)",
-                      borderColor:
-                        method === methodType ? colors.accent : "transparent",
+            <View style={styles.inputsContainer}>
+              <View style={styles.inputRow}>
+                <TextInput
+                  label="High"
+                  value={highPrice}
+                  onChangeText={setHighPrice}
+                  keyboardType="numeric"
+                  style={[styles.input, { flex: 1 }]}
+                  mode="outlined"
+                  outlineColor={isDark ? "#444" : "#ddd"}
+                  activeOutlineColor="#6200ee"
+                  textColor={isDark ? "#fff" : "#000"}
+                  theme={{
+                    colors: {
+                      background: isDark ? "#2A2A2A" : "#f5f5f5",
+                      onSurfaceVariant: isDark ? "#aaa" : "#666",
                     },
+                  }}
+                />
+
+                <TextInput
+                  label="Low"
+                  value={lowPrice}
+                  onChangeText={setLowPrice}
+                  keyboardType="numeric"
+                  style={[styles.input, { flex: 1, marginLeft: 12 }]}
+                  mode="outlined"
+                  outlineColor={isDark ? "#444" : "#ddd"}
+                  activeOutlineColor="#6200ee"
+                  textColor={isDark ? "#fff" : "#000"}
+                  theme={{
+                    colors: {
+                      background: isDark ? "#2A2A2A" : "#f5f5f5",
+                      onSurfaceVariant: isDark ? "#aaa" : "#666",
+                    },
+                  }}
+                />
+              </View>
+
+              <View style={styles.inputRow}>
+                <TextInput
+                  label="Close"
+                  value={closePrice}
+                  onChangeText={setClosePrice}
+                  keyboardType="numeric"
+                  style={[styles.input, { flex: 1 }]}
+                  mode="outlined"
+                  outlineColor={isDark ? "#444" : "#ddd"}
+                  activeOutlineColor="#6200ee"
+                  textColor={isDark ? "#fff" : "#000"}
+                  theme={{
+                    colors: {
+                      background: isDark ? "#2A2A2A" : "#f5f5f5",
+                      onSurfaceVariant: isDark ? "#aaa" : "#666",
+                    },
+                  }}
+                />
+
+                {method === "demark" && (
+                  <TextInput
+                    label="Open"
+                    value={openPrice}
+                    onChangeText={setOpenPrice}
+                    keyboardType="numeric"
+                    style={[styles.input, { flex: 1, marginLeft: 12 }]}
+                    mode="outlined"
+                    outlineColor={isDark ? "#444" : "#ddd"}
+                    activeOutlineColor="#6200ee"
+                    textColor={isDark ? "#fff" : "#000"}
+                    theme={{
+                      colors: {
+                        background: isDark ? "#2A2A2A" : "#f5f5f5",
+                        onSurfaceVariant: isDark ? "#aaa" : "#666",
+                      },
+                    }}
+                  />
+                )}
+              </View>
+            </View>
+
+            <View style={styles.dropdownContainer}>
+              <Text
+                variant="titleSmall"
+                style={{
+                  marginBottom: 8,
+                  left: 5,
+                  color: isDark ? "#aaa" : "#666",
+                  fontWeight: "600",
+                }}
+              >
+                Pivot Points
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={[
+                  styles.dropdownButton,
+                  {
+                    backgroundColor: isDark ? "#1E1E1E" : "#f5f5f5",
+                    borderColor: isDark
+                      ? "rgba(255, 255, 255, 0.1)"
+                      : "rgba(0, 0, 0, 0.1)",
+                  },
+                ]}
+                onPress={toggleDropdown}
+                ref={dropdownButtonRef}
+              >
+                <Text
+                  style={[
+                    styles.dropdownButtonText,
+                    { color: isDark ? "#fff" : "#000" },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.methodButtonText,
-                      {
-                        color:
-                          method === methodType
-                            ? colors.accent
-                            : colors.textSecondary,
-                        fontWeight: method === methodType ? "bold" : "normal",
-                      },
-                    ]}
+                  {getMethodLabel(method)}
+                </Text>
+                <MaterialIcons
+                  name={
+                    isDropdownOpen ? "keyboard-arrow-up" : "keyboard-arrow-down"
+                  }
+                  color="#6200ee"
+                  size={24}
+                />
+              </TouchableOpacity>
+
+              {isDropdownOpen && (
+                <Modal
+                  visible={isDropdownOpen}
+                  transparent={true}
+                  animationType="none"
+                  statusBarTranslucent={true}
+                  onRequestClose={closeDropdown}
+                >
+                  <TouchableOpacity
+                    style={styles.dropdownOverlay}
+                    activeOpacity={1}
+                    onPress={closeDropdown}
                   >
-                    {getMethodLabel(methodType)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Animated.View
+                      style={[
+                        styles.dropdownListContainer,
+                        {
+                          backgroundColor: isDark ? "#1E1E1E" : "#fff",
+                          borderColor: isDark
+                            ? "rgba(255, 255, 255, 0.1)"
+                            : "rgba(0, 0, 0, 0.1)",
+                          top: dropdownPosition.top,
+                          left: dropdownPosition.left,
+                          width: dropdownPosition.width,
+                          opacity: dropdownOpacity,
+                          transform: [
+                            { scale: dropdownScale },
+                            { translateY: dropdownTranslateY },
+                          ],
+                        },
+                      ]}
+                    >
+                      <FlatList
+                        data={methodOptions}
+                        renderItem={renderDropdownItem}
+                        keyExtractor={(item) => item}
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.dropdownList}
+                      />
+                    </Animated.View>
+                  </TouchableOpacity>
+                </Modal>
+              )}
             </View>
 
             {showMethodInfo && (
@@ -322,439 +719,298 @@ export default function PivotPointsCalculator() {
                 style={[
                   styles.methodInfoContainer,
                   {
-                    backgroundColor: colors.accentLight,
+                    backgroundColor: isDark
+                      ? "rgba(255, 255, 255, 0.05)"
+                      : "rgba(0, 0, 0, 0.05)",
                     borderLeftWidth: 3,
-                    borderLeftColor: colors.accent,
+                    borderLeftColor: "#6200ee",
                   },
                 ]}
               >
-                <Text style={{ color: colors.textSecondary }}>
+                <Text
+                  variant="bodyMedium"
+                  style={{ color: isDark ? "#fff" : "#000" }}
+                >
                   {METHOD_INFO[method]}
                 </Text>
               </View>
             )}
           </View>
 
-          <View style={styles.inputsContainer}>
-            <Text
-              variant="labelLarge"
-              style={{
-                color: colors.textSecondary,
-                letterSpacing: 0.5,
-                marginBottom: 12,
-              }}
-            >
-              PRICE VALUES
-            </Text>
-            <View style={styles.inputRow}>
-              <View style={[styles.inputWrapper, { flex: 1 }]}>
-                <Text
-                  style={[styles.inputLabel, { color: colors.textSecondary }]}
-                >
-                  High
-                </Text>
-                <TextInput
-                  value={highPrice}
-                  onChangeText={setHighPrice}
-                  keyboardType="numeric"
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surfaceVariant,
-                      color: colors.text,
-                    },
-                  ]}
-                  mode="flat"
-                  activeUnderlineColor={colors.accent}
-                  underlineColor={colors.divider}
-                  textColor={colors.text}
-                  theme={{
-                    colors: {
-                      background: colors.surfaceVariant,
-                      onSurfaceVariant: colors.textSecondary,
-                    },
-                  }}
-                />
-              </View>
-
-              <View style={[styles.inputWrapper, { flex: 1, marginLeft: 12 }]}>
-                <Text
-                  style={[styles.inputLabel, { color: colors.textSecondary }]}
-                >
-                  Low
-                </Text>
-                <TextInput
-                  value={lowPrice}
-                  onChangeText={setLowPrice}
-                  keyboardType="numeric"
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surfaceVariant,
-                      color: colors.text,
-                    },
-                  ]}
-                  mode="flat"
-                  activeUnderlineColor={colors.accent}
-                  underlineColor={colors.divider}
-                  textColor={colors.text}
-                  theme={{
-                    colors: {
-                      background: colors.surfaceVariant,
-                      onSurfaceVariant: colors.textSecondary,
-                    },
-                  }}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputRow}>
-              <View style={[styles.inputWrapper, { flex: 1 }]}>
-                <Text
-                  style={[styles.inputLabel, { color: colors.textSecondary }]}
-                >
-                  Close
-                </Text>
-                <TextInput
-                  value={closePrice}
-                  onChangeText={setClosePrice}
-                  keyboardType="numeric"
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.surfaceVariant,
-                      color: colors.text,
-                    },
-                  ]}
-                  mode="flat"
-                  activeUnderlineColor={colors.accent}
-                  underlineColor={colors.divider}
-                  textColor={colors.text}
-                  theme={{
-                    colors: {
-                      background: colors.surfaceVariant,
-                      onSurfaceVariant: colors.textSecondary,
-                    },
-                  }}
-                />
-              </View>
-
-              {method === "demark" && (
-                <View
-                  style={[styles.inputWrapper, { flex: 1, marginLeft: 12 }]}
-                >
-                  <Text
-                    style={[styles.inputLabel, { color: colors.textSecondary }]}
-                  >
-                    Open
-                  </Text>
-                  <TextInput
-                    value={openPrice}
-                    onChangeText={setOpenPrice}
-                    keyboardType="numeric"
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.surfaceVariant,
-                        color: colors.text,
-                      },
-                    ]}
-                    mode="flat"
-                    activeUnderlineColor={colors.accent}
-                    underlineColor={colors.divider}
-                    textColor={colors.text}
-                    theme={{
-                      colors: {
-                        background: colors.surfaceVariant,
-                        onSurfaceVariant: colors.textSecondary,
-                      },
-                    }}
-                  />
-                </View>
-              )}
-            </View>
-          </View>
-
           <Divider
-            style={[styles.divider, { backgroundColor: colors.divider }]}
+            style={[
+              styles.divider,
+              {
+                backgroundColor: isDark
+                  ? "rgba(255, 255, 255, 0.1)"
+                  : "rgba(0, 0, 0, 0.1)",
+              },
+            ]}
           />
 
           <View style={styles.resultsContainer}>
             <View style={styles.resultsHeader}>
               <Text
                 variant="titleMedium"
-                style={{
-                  color: colors.text,
-                  fontWeight: "600",
-                  letterSpacing: 0.5,
-                }}
+                style={{ color: isDark ? "#fff" : "#000" }}
               >
                 Results
               </Text>
               <View style={styles.resultActions}>
                 <IconButton
                   icon="refresh"
-                  size={22}
+                  size={20}
                   onPress={calculateResults}
-                  iconColor={colors.accent}
-                  style={{
-                    backgroundColor: colors.accentLight,
-                    borderRadius: 12,
-                  }}
+                  iconColor={isDark ? "#fff" : "#000"}
+                  disabled={isCalculating}
+                />
+                <IconButton
+                  icon="share-variant"
+                  size={20}
+                  onPress={shareCurrentCalculation}
+                  iconColor={isDark ? "#fff" : "#000"}
+                  disabled={isCalculating || pivot === 0}
                 />
                 <IconButton
                   icon="content-save"
-                  size={22}
+                  size={20}
                   onPress={saveToHistory}
-                  iconColor={colors.accent}
-                  style={{
-                    marginLeft: 8,
-                    backgroundColor: colors.accentLight,
-                    borderRadius: 12,
-                  }}
+                  iconColor={isDark ? "#fff" : "#000"}
+                  disabled={isCalculating || pivot === 0}
                 />
               </View>
             </View>
 
-            <Surface
-              style={[
-                styles.pivotContainer,
-                {
-                  backgroundColor: colors.surfaceVariant,
-                  borderRadius: 16,
-                  elevation: 2,
-                  overflow: "hidden",
-                },
-              ]}
-            >
-              <LinearGradient
-                colors={colors.cardGradient}
-                style={styles.pivotGradient}
-              >
+            {calculationError && (
+              <View style={styles.errorContainer}>
+                <Text style={{ color: "#F44336", textAlign: "center" }}>
+                  {calculationError}
+                </Text>
+              </View>
+            )}
+
+            {isCalculating ? (
+              <View style={styles.loadingContainer}>
                 <Text
-                  variant="bodyLarge"
                   style={{
-                    color: colors.textSecondary,
-                    fontWeight: "500",
+                    color: isDark ? "#aaa" : "#666",
+                    textAlign: "center",
                   }}
                 >
-                  Pivot Point (PP)
+                  Calculating...
                 </Text>
-                <View style={styles.pivotValueContainer}>
-                  <Text
-                    variant="headlineSmall"
-                    style={{
-                      color: colors.warning,
-                      fontWeight: "bold",
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {formatPrice(pivot)}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => copyToClipboard(pivot.toString())}
-                    style={{
+              </View>
+            ) : (
+              <>
+                <View
+                  style={[
+                    styles.pivotContainer,
+                    {
                       backgroundColor: isDark
-                        ? "rgba(255, 255, 255, 0.1)"
+                        ? "rgba(255, 255, 255, 0.05)"
                         : "rgba(0, 0, 0, 0.05)",
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
+                      borderWidth: 0.5,
+                      borderColor: isDark
+                        ? "rgba(255, 255, 255, 0.1)"
+                        : "rgba(0, 0, 0, 0.1)",
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="bodyMedium"
+                    style={{ color: isDark ? "#aaa" : "#666" }}
                   >
-                    <Ionicons
-                      name="copy-outline"
-                      size={18}
-                      color={colors.textSecondary}
-                    />
-                  </TouchableOpacity>
+                    Pivot Point (PP)
+                  </Text>
+                  <View style={styles.pivotValueContainer}>
+                    <Text
+                      variant="headlineSmall"
+                      style={{ color: "#FFC107", fontWeight: "bold" }}
+                    >
+                      {formatPrice(pivot)}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => copyToClipboard(pivot.toString())}
+                    >
+                      <Ionicons
+                        name="copy-outline"
+                        size={18}
+                        color={isDark ? "#aaa" : "#666"}
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </LinearGradient>
-            </Surface>
 
-            <View style={styles.levelsContainer}>
-              <Surface
-                style={[
-                  styles.levelCard,
-                  {
-                    backgroundColor: colors.surfaceVariant,
-                    borderRadius: 16,
-                    elevation: 2,
-                    overflow: "hidden",
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={colors.cardGradient}
-                  style={styles.levelCardGradient}
-                >
-                  <Text
-                    variant="titleMedium"
-                    style={{
-                      color: colors.error,
-                      marginBottom: 12,
-                      textAlign: "center",
-                      fontWeight: "600",
-                    }}
+                <View style={styles.levelsContainer}>
+                  <Surface
+                    style={[
+                      styles.levelCard,
+                      {
+                        backgroundColor: isDark ? "#1E1E1E" : "#f5f5f5",
+                        borderRadius: 12,
+                        borderWidth: 0.5,
+                        borderColor: isDark
+                          ? "rgba(255, 255, 255, 0.1)"
+                          : "rgba(0, 0, 0, 0.1)",
+                      },
+                    ]}
+                    elevation={0}
                   >
-                    Resistance
-                  </Text>
-                  <View style={styles.levelsList}>
-                    {resistance.map(
-                      (level, index) =>
-                        level !== 0 && (
-                          <View
-                            key={`r${index + 1}`}
-                            style={[
-                              styles.levelRow,
-                              {
-                                borderBottomColor: colors.divider,
-                                borderBottomWidth:
-                                  index < resistance.length - 1 ? 1 : 0,
-                              },
-                            ]}
-                          >
-                            <Text
-                              variant="bodyMedium"
-                              style={{
-                                color: colors.text,
-                                fontWeight: "bold",
-                              }}
-                            >
-                              R{index + 1}
-                            </Text>
-                            <View style={styles.levelValueContainer}>
-                              <Text
-                                variant="bodyLarge"
-                                style={{
-                                  color: colors.error,
-                                  fontWeight: "bold",
-                                }}
+                    <View style={styles.levelCardContent}>
+                      <Text
+                        variant="titleMedium"
+                        style={{
+                          color: "#F44336",
+                          marginBottom: 5,
+                          textAlign: "center",
+                        }}
+                      >
+                        Resistance
+                      </Text>
+                      <View style={styles.levelsList}>
+                        {resistance.map(
+                          (level, index) =>
+                            level !== 0 && (
+                              <View
+                                key={`r${index + 1}`}
+                                style={[
+                                  styles.levelRow,
+                                  {
+                                    borderBottomColor: isDark
+                                      ? "rgba(255, 255, 255, 0.05)"
+                                      : "rgba(0, 0, 0, 0.05)",
+                                  },
+                                ]}
                               >
-                                {formatPrice(level)}
-                              </Text>
-                              <TouchableOpacity
-                                onPress={() =>
-                                  copyToClipboard(level.toString())
-                                }
-                                style={{
-                                  padding: 4,
-                                }}
-                              >
-                                <Ionicons
-                                  name="copy-outline"
-                                  size={16}
-                                  color={colors.textTertiary}
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        )
-                    )}
-                  </View>
-                </LinearGradient>
-              </Surface>
+                                <Text
+                                  variant="bodyMedium"
+                                  style={{
+                                    color: isDark ? "#fff" : "#000",
+                                    fontWeight: "bold",
+                                  }}
+                                >
+                                  R{resistance.length - index}
+                                </Text>
+                                <View style={styles.levelValueContainer}>
+                                  <Text
+                                    variant="bodyLarge"
+                                    style={{
+                                      color: "#F44336",
+                                      fontWeight: "bold",
+                                    }}
+                                  >
+                                    {formatPrice(level)}
+                                  </Text>
+                                  <TouchableOpacity
+                                    onPress={() =>
+                                      copyToClipboard(level.toString())
+                                    }
+                                  >
+                                    <Ionicons
+                                      name="copy-outline"
+                                      size={16}
+                                      color={isDark ? "#aaa" : "#666"}
+                                    />
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            )
+                        )}
+                      </View>
+                    </View>
+                  </Surface>
 
-              <Surface
-                style={[
-                  styles.levelCard,
-                  {
-                    backgroundColor: colors.surfaceVariant,
-                    borderRadius: 16,
-                    elevation: 2,
-                    overflow: "hidden",
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={colors.cardGradient}
-                  style={styles.levelCardGradient}
-                >
-                  <Text
-                    variant="titleMedium"
-                    style={{
-                      color: colors.success,
-                      marginBottom: 12,
-                      textAlign: "center",
-                      fontWeight: "600",
-                    }}
+                  <Surface
+                    style={[
+                      styles.levelCard,
+                      {
+                        backgroundColor: isDark ? "#1E1E1E" : "#f5f5f5",
+                        borderRadius: 12,
+                        borderWidth: 0.5,
+                        borderColor: isDark
+                          ? "rgba(255, 255, 255, 0.1)"
+                          : "rgba(0, 0, 0, 0.1)",
+                      },
+                    ]}
+                    elevation={0}
                   >
-                    Support
-                  </Text>
-                  <View style={styles.levelsList}>
-                    {support.map(
-                      (level, index) =>
-                        level !== 0 && (
-                          <View
-                            key={`s${index + 1}`}
-                            style={[
-                              styles.levelRow,
-                              {
-                                borderBottomColor: colors.divider,
-                                borderBottomWidth:
-                                  index < support.length - 1 ? 1 : 0,
-                              },
-                            ]}
-                          >
-                            <Text
-                              variant="bodyMedium"
-                              style={{
-                                color: colors.text,
-                                fontWeight: "bold",
-                              }}
-                            >
-                              S{index + 1}
-                            </Text>
-                            <View style={styles.levelValueContainer}>
-                              <Text
-                                variant="bodyLarge"
-                                style={{
-                                  color: colors.success,
-                                  fontWeight: "bold",
-                                }}
+                    <View style={styles.levelCardContent}>
+                      <Text
+                        variant="titleMedium"
+                        style={{
+                          color: "#4CAF50",
+                          marginBottom: 5,
+                          textAlign: "center",
+                        }}
+                      >
+                        Support
+                      </Text>
+                      <View style={styles.levelsList}>
+                        {support.map(
+                          (level, index) =>
+                            level !== 0 && (
+                              <View
+                                key={`s${index + 1}`}
+                                style={[
+                                  styles.levelRow,
+                                  {
+                                    borderBottomColor: isDark
+                                      ? "rgba(255, 255, 255, 0.05)"
+                                      : "rgba(0, 0, 0, 0.05)",
+                                  },
+                                ]}
                               >
-                                {formatPrice(level)}
-                              </Text>
-                              <TouchableOpacity
-                                onPress={() =>
-                                  copyToClipboard(level.toString())
-                                }
-                                style={{
-                                  padding: 4,
-                                }}
-                              >
-                                <Ionicons
-                                  name="copy-outline"
-                                  size={16}
-                                  color={colors.textTertiary}
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        )
-                    )}
-                  </View>
-                </LinearGradient>
-              </Surface>
-            </View>
+                                <Text
+                                  variant="bodyMedium"
+                                  style={{
+                                    color: isDark ? "#fff" : "#000",
+                                    fontWeight: "bold",
+                                  }}
+                                >
+                                  S{index + 1}
+                                </Text>
+                                <View style={styles.levelValueContainer}>
+                                  <Text
+                                    variant="bodyLarge"
+                                    style={{
+                                      color: "#4CAF50",
+                                      fontWeight: "bold",
+                                    }}
+                                  >
+                                    {formatPrice(level)}
+                                  </Text>
+                                  <TouchableOpacity
+                                    onPress={() =>
+                                      copyToClipboard(level.toString())
+                                    }
+                                  >
+                                    <Ionicons
+                                      name="copy-outline"
+                                      size={16}
+                                      color={isDark ? "#aaa" : "#666"}
+                                    />
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            )
+                        )}
+                      </View>
+                    </View>
+                  </Surface>
+                </View>
 
-            <View style={styles.infoContainer}>
-              <Chip
-                icon="information-outline"
-                mode="outlined"
-                style={{
-                  borderColor: colors.divider,
-                  backgroundColor: colors.accentLight,
-                }}
-                textStyle={{
-                  color: colors.textSecondary,
-                }}
-              >
-                Tap any value to copy to clipboard
-              </Chip>
-            </View>
+                <View style={styles.infoContainer}>
+                  <Chip
+                    icon="information"
+                    mode="outlined"
+                    style={{ borderColor: isDark ? "#444" : "#ddd" }}
+                    textStyle={{ color: isDark ? "#fff" : "#000" }}
+                  >
+                    Tap any value to copy to clipboard
+                  </Chip>
+                </View>
+              </>
+            )}
           </View>
 
           <Divider
@@ -772,11 +1028,7 @@ export default function PivotPointsCalculator() {
             <View style={styles.historyHeader}>
               <Text
                 variant="titleMedium"
-                style={{
-                  color: colors.text,
-                  fontWeight: "600",
-                  letterSpacing: 0.5,
-                }}
+                style={{ color: isDark ? "#fff" : "#000" }}
               >
                 Recent Calculations
               </Text>
@@ -785,25 +1037,17 @@ export default function PivotPointsCalculator() {
                   visible={historyFilterOpen}
                   onDismiss={() => setHistoryFilterOpen(false)}
                   contentStyle={{
-                    backgroundColor: colors.surfaceElevated,
+                    backgroundColor: isDark ? "#1e1e1e" : "#ffffff",
+                    top: 60,
                     borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 12,
-                    marginTop: 40,
+                    borderColor: "lightgrey",
                   }}
                   anchor={
                     <Button
-                      mode="outlined"
+                      mode="text"
                       onPress={() => setHistoryFilterOpen(true)}
                       icon="filter-variant"
-                      textColor={colors.accent}
-                      style={{
-                        borderColor: colors.accent,
-                        borderRadius: 20,
-                      }}
-                      labelStyle={{
-                        fontSize: 13,
-                      }}
+                      textColor="#6200ee"
                       compact
                     >
                       {historyFilter === "favorites" ? "Favorites" : "All"}
@@ -815,9 +1059,8 @@ export default function PivotPointsCalculator() {
                       setHistoryFilter("all");
                       setHistoryFilterOpen(false);
                     }}
-                    title="All calculations"
+                    title="All"
                     leadingIcon="format-list-bulleted"
-                    titleStyle={{ color: colors.text }}
                     trailingIcon={historyFilter === "all" ? "check" : undefined}
                   />
                   <Menu.Item
@@ -825,9 +1068,8 @@ export default function PivotPointsCalculator() {
                       setHistoryFilter("favorites");
                       setHistoryFilterOpen(false);
                     }}
-                    title="Favorites only"
+                    title="Favorites"
                     leadingIcon="star"
-                    titleStyle={{ color: colors.text }}
                     trailingIcon={
                       historyFilter === "favorites" ? "check" : undefined
                     }
@@ -837,25 +1079,30 @@ export default function PivotPointsCalculator() {
                 <Button
                   mode="text"
                   onPress={clearHistory}
-                  icon="trash-can-outline"
-                  textColor={colors.textSecondary}
-                  style={{ marginLeft: 8 }}
                   compact
+                  textColor="#6200ee"
+                  disabled={history.length === 0}
                 >
                   Clear
                 </Button>
               </View>
             </View>
 
-            {filteredHistory.length > 0 ? (
-              <ScrollView style={styles.historyList}>
-                {filteredHistory.map((item, index) => {
+            {isLoading ? (
+              <View style={styles.emptyHistory}>
+                <Text style={{ color: isDark ? "#aaa" : "#666" }}>
+                  Loading history...
+                </Text>
+              </View>
+            ) : filteredHistory.length > 0 ? (
+              <View style={styles.historyListContainer}>
+                {displayedHistory.map((item, index) => {
                   // Check if this is the first item or if the date is different from the previous item
                   const isNewDay =
                     index === 0 ||
                     new Date(item.timestamp).toDateString() !==
                       new Date(
-                        filteredHistory[index - 1].timestamp
+                        displayedHistory[index - 1].timestamp
                       ).toDateString();
 
                   return (
@@ -865,10 +1112,10 @@ export default function PivotPointsCalculator() {
                           style={[
                             styles.historyDateHeader,
                             {
-                              color: colors.textSecondary,
-                              backgroundColor: isDark
-                                ? "rgba(255, 255, 255, 0.03)"
-                                : "rgba(0, 0, 0, 0.02)",
+                              color: isDark
+                                ? "rgba(255,255,255,0.7)"
+                                : "rgba(0,0,0,0.6)",
+                              paddingBottom: 12,
                             },
                           ]}
                         >
@@ -883,26 +1130,23 @@ export default function PivotPointsCalculator() {
                             backgroundColor:
                               index === 0
                                 ? isDark
-                                  ? "rgba(143, 68, 253, 0.2)"
-                                  : "rgba(143, 68, 253, 0.05)"
-                                : colors.surfaceVariant,
-                            borderBottomColor: colors.divider,
-                            borderRadius: 12,
-                            marginHorizontal: 8,
-                            marginBottom: 8,
-                            elevation: index === 0 ? 2 : 0,
+                                  ? "#321b6e"
+                                  : "#efe5ff"
+                                : isDark
+                                ? "#1e1e1e"
+                                : "#ffffff",
+                            borderBottomColor: isDark
+                              ? "rgba(255, 255, 255, 0.1)"
+                              : "rgba(0, 0, 0, 0.1)",
+                            borderRadius: 8,
+                            marginBottom: 6,
                           },
                         ]}
-                        elevation={index === 0 ? 2 : 0}
+                        elevation={0}
                       >
                         <TouchableOpacity
                           style={styles.historyItemTouchable}
-                          onPress={() => {
-                            setMethod(item.method);
-                            setHighPrice(item.high);
-                            setLowPrice(item.low);
-                            setClosePrice(item.close);
-                          }}
+                          onPress={() => loadCalculation(item)}
                           activeOpacity={0.7}
                         >
                           <View style={styles.historyItemLeft}>
@@ -911,7 +1155,7 @@ export default function PivotPointsCalculator() {
                                 variant="bodyMedium"
                                 style={[
                                   styles.historyItemMethod,
-                                  { color: colors.text },
+                                  { color: isDark ? "#fff" : "#000" },
                                 ]}
                               >
                                 {getMethodLabel(item.method)}
@@ -920,7 +1164,7 @@ export default function PivotPointsCalculator() {
                                 <Ionicons
                                   name="star"
                                   size={16}
-                                  color={colors.warning}
+                                  color="#6200ee"
                                   style={{ marginLeft: 4 }}
                                 />
                               )}
@@ -930,15 +1174,20 @@ export default function PivotPointsCalculator() {
                               <Text
                                 variant="bodySmall"
                                 style={{
-                                  color: colors.textSecondary,
+                                  color: isDark
+                                    ? "rgba(255,255,255,0.6)"
+                                    : "rgba(0,0,0,0.5)",
                                 }}
                               >
                                 H: {item.high} L: {item.low} C: {item.close}
                               </Text>
                               <Text
-                                variant="bodySmall"
                                 style={{
-                                  color: colors.textTertiary,
+                                  color: isDark
+                                    ? "rgba(255,255,255,0.5)"
+                                    : "rgba(0,0,0,0.4)",
+                                  fontSize: 10,
+                                  paddingLeft: 5,
                                 }}
                               >
                                 {getRelativeTime(item.timestamp)}
@@ -951,19 +1200,47 @@ export default function PivotPointsCalculator() {
                               <IconButton
                                 icon={item.isFavorite ? "star" : "star-outline"}
                                 size={18}
-                                onPress={() => toggleFavorite(index)}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  toggleFavorite(filteredHistory.indexOf(item));
+                                }}
                                 iconColor={
                                   item.isFavorite
-                                    ? colors.warning
-                                    : colors.textTertiary
+                                    ? "#6200ee"
+                                    : isDark
+                                    ? "rgba(255,255,255,0.5)"
+                                    : "rgba(0,0,0,0.4)"
+                                }
+                                style={styles.actionButton}
+                              />
+                              <IconButton
+                                icon="share-variant"
+                                size={18}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  shareCalculation(item);
+                                }}
+                                iconColor={
+                                  isDark
+                                    ? "rgba(255,255,255,0.5)"
+                                    : "rgba(0,0,0,0.4)"
                                 }
                                 style={styles.actionButton}
                               />
                               <IconButton
                                 icon="trash-can-outline"
                                 size={18}
-                                onPress={() => deleteHistoryItem(index)}
-                                iconColor={colors.textTertiary}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  deleteHistoryItem(
+                                    filteredHistory.indexOf(item)
+                                  );
+                                }}
+                                iconColor={
+                                  isDark
+                                    ? "rgba(255,255,255,0.5)"
+                                    : "rgba(0,0,0,0.4)"
+                                }
                                 style={styles.actionButton}
                               />
                             </View>
@@ -972,7 +1249,7 @@ export default function PivotPointsCalculator() {
                               <Text
                                 variant="bodyMedium"
                                 style={{
-                                  color: colors.warning,
+                                  color: "#FFC107",
                                   fontWeight: "bold",
                                 }}
                               >
@@ -985,28 +1262,47 @@ export default function PivotPointsCalculator() {
                     </React.Fragment>
                   );
                 })}
-              </ScrollView>
+
+                {filteredHistory.length > 3 && (
+                  <TouchableOpacity
+                    style={styles.showMoreButton}
+                    onPress={() => setIsHistoryExpanded(!isHistoryExpanded)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={{
+                        color: "#6200ee",
+                        fontWeight: "600",
+                        textAlign: "center",
+                      }}
+                    >
+                      {isHistoryExpanded
+                        ? `Show Less (${filteredHistory.length} items total)`
+                        : `Show ${filteredHistory.length - 3} More Items...`}
+                    </Text>
+                    <Ionicons
+                      name={isHistoryExpanded ? "chevron-up" : "chevron-down"}
+                      size={16}
+                      color="#6200ee"
+                      style={{ marginLeft: 4 }}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
             ) : (
-              <Surface
-                style={[
-                  styles.emptyHistory,
-                  {
-                    backgroundColor: colors.surfaceVariant,
-                    borderRadius: 12,
-                    margin: 16,
-                  },
-                ]}
-              >
+              <View style={styles.emptyHistory}>
                 <Ionicons
                   name="calculator-outline"
                   size={48}
-                  color={colors.textTertiary}
+                  color={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}
                 />
                 <Text
                   style={[
                     styles.emptyHistoryText,
                     {
-                      color: colors.textSecondary,
+                      color: isDark
+                        ? "rgba(255,255,255,0.5)"
+                        : "rgba(0,0,0,0.5)",
                     },
                   ]}
                 >
@@ -1018,16 +1314,12 @@ export default function PivotPointsCalculator() {
                   <Button
                     mode="outlined"
                     onPress={() => setHistoryFilter("all")}
-                    style={[
-                      styles.emptyHistoryButton,
-                      { borderColor: colors.accent },
-                    ]}
-                    textColor={colors.accent}
+                    style={styles.emptyHistoryButton}
                   >
                     Show all calculations
                   </Button>
                 )}
-              </Surface>
+              </View>
             )}
           </View>
         </ScrollView>
@@ -1044,52 +1336,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   methodSelectorContainer: {
-    marginBottom: 24,
-    paddingHorizontal: 4,
+    marginBottom: 16,
   },
   methodHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
   },
-  methodButtonsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 12,
-  },
-  methodButton: {
-    flex: 1,
-    minWidth: 80,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  },
-  methodButtonText: {
-    fontSize: 13,
-    fontWeight: "500",
+  segmentedButtons: {
+    marginBottom: 8,
+    height: 40,
   },
   methodInfoContainer: {
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 8,
     marginTop: 8,
   },
   inputsContainer: {
     paddingTop: 6,
-    paddingHorizontal: 4,
-    marginBottom: 16,
-  },
-  inputWrapper: {
-    marginBottom: 8,
-  },
-  inputLabel: {
-    fontSize: 14,
-    marginBottom: 6,
-    fontWeight: "500",
   },
   inputRow: {
     flexDirection: "row",
@@ -1097,15 +1361,12 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 0,
-    borderRadius: 8,
   },
   divider: {
-    marginVertical: 24,
-    height: 1,
+    marginVertical: 16,
   },
   resultsContainer: {
     marginTop: 8,
-    paddingHorizontal: 4,
   },
   resultsHeader: {
     flexDirection: "row",
@@ -1117,35 +1378,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   pivotContainer: {
-    marginBottom: 24,
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
     alignItems: "center",
   },
   pivotValueContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginTop: 8,
-  },
-  pivotGradient: {
-    width: "100%",
-    height: "100%",
-    padding: 16,
-    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
   },
   levelsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 16,
-    marginBottom: 24,
+    gap: 12,
+    marginBottom: 16,
   },
   levelCard: {
     flex: 1,
     overflow: "hidden",
   },
-  levelCardGradient: {
-    width: "100%",
-    height: "100%",
-    padding: 16,
+  levelCardContent: {
+    padding: 12,
   },
   levelsList: {
     gap: 8,
@@ -1154,7 +1409,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
   },
   levelValueContainer: {
     flexDirection: "row",
@@ -1163,8 +1419,7 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     alignItems: "center",
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 8,
   },
   historyContainer: {
     marginTop: 8,
@@ -1173,23 +1428,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
     paddingHorizontal: 16,
   },
   historyActions: {
     flexDirection: "row",
     alignItems: "center",
   },
-  historyList: {
-    maxHeight: 350,
-    paddingHorizontal: 8,
+  historyListContainer: {
+    marginBottom: 16,
   },
   historyDateHeader: {
     fontSize: 12,
-    padding: 8,
+    marginTop: 8,
+    marginBottom: 4,
     paddingHorizontal: 16,
     fontWeight: "500",
-    marginVertical: 4,
   },
   historyItem: {
     borderBottomWidth: 1,
@@ -1203,7 +1457,7 @@ const styles = StyleSheet.create({
   },
   historyItemRecent: {
     borderLeftWidth: 4,
-    borderLeftColor: "#8F44FD",
+    borderLeftColor: "#6200ee",
   },
   historyItemLeft: {
     flex: 1,
@@ -1220,7 +1474,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    width: "70%",
+    width: "80%",
   },
   historyItemRight: {
     alignItems: "flex-end",
@@ -1253,6 +1507,80 @@ const styles = StyleSheet.create({
   },
   emptyHistoryButton: {
     marginTop: 16,
-    borderRadius: 20,
+  },
+  errorContainer: {
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    backgroundColor: "#FFEBEB",
+    borderWidth: 1,
+    borderColor: "#F44336",
+  },
+  loadingContainer: {
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    backgroundColor: "#EBF5FF",
+    borderWidth: 1,
+    borderColor: "#6200ee",
+  },
+  showMoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    marginBottom: 8,
+    paddingVertical: 8,
+    backgroundColor: "rgba(98, 0, 238, 0.05)",
+    borderRadius: 8,
+    marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "rgba(98, 0, 238, 0.2)",
+  },
+  dropdownContainer: {
+    position: "relative",
+    zIndex: 1000,
+  },
+  dropdownButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
+  },
+  dropdownListContainer: {
+    position: "absolute",
+    borderRadius: 14,
+    borderWidth: 1,
+    maxHeight: 300,
+    zIndex: 1001,
+  },
+  dropdownList: {
+    paddingVertical: 5,
+    paddingHorizontal: 5,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.1)",
+    padding: 0,
+    borderRadius: 8,
+  },
+  dropdownItemText: {
+    fontSize: 16,
   },
 });
