@@ -419,12 +419,12 @@ export default function FibonacciCalculator() {
           buttons={[
             {
               value: "uptrend",
-              label: "Bullish",
+              label: "Up",
               icon: "arrow-up",
             },
             {
               value: "downtrend",
-              label: "Bearish",
+              label: "Short",
               icon: "arrow-down",
             },
           ]}
@@ -562,14 +562,23 @@ export default function FibonacciCalculator() {
 
         <View style={styles.levelsGrid}>
           {activeTab === "retracement" &&
-            retracements
+            [...retracements]
               .filter((level) => level.level >= 0 && level.level <= 100)
+              .sort((a, b) =>
+                // For uptrend, sort by level ascending (0.236 to 0.786)
+                // For downtrend, sort by level descending (0.786 to 0.236)
+                trend === "uptrend" ? a.level - b.level : b.level - a.level
+              )
               .map((level, index) => renderKeyLevelCard(level, index))}
 
           {activeTab === "extension" &&
-            extensions.map((level, index) =>
-              renderKeyLevelCard(level, index + 100)
-            )}
+            [...extensions]
+              .sort((a, b) =>
+                // For uptrend, sort by level descending (2.618 to 0.236)
+                // For downtrend, sort by level ascending (0.236 to 2.618)
+                trend === "uptrend" ? b.level - a.level : a.level - b.level
+              )
+              .map((level, index) => renderKeyLevelCard(level, index + 100))}
         </View>
       </View>
     );
@@ -577,11 +586,10 @@ export default function FibonacciCalculator() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-
-<PageHeader
-          title="Fibonacci Calculator"
-          subtitle="Calculate key price levels for trading"
-        />
+      <PageHeader
+        title="Fibonacci Calculator"
+        subtitle="Calculate key price levels for trading"
+      />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -589,8 +597,6 @@ export default function FibonacciCalculator() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-
-
         <CalculatorCard
           title="Price Input"
           icon="chart-bell-curve"

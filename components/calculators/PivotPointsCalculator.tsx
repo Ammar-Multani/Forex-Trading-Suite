@@ -42,9 +42,21 @@ const METHOD_INFO = {
   standard: "Classic formula using (H+L+C)/3 as the pivot point.",
   woodie: "Gives more weight to the closing price with (H+L+2C)/4.",
   camarilla: "Uses more levels with tighter ranges for day trading.",
-  demark: "Based on whether close is higher or lower than open price.",
+  demark:
+    "Uses different formula based on price relationship. If Close > Open: X = H+2L+C, if Close < Open: X = 2H+L+C, then Pivot = X/4. Only calculates one R1 and S1.",
   fibonacci:
     "Uses Fibonacci ratios (0.382, 0.618, 1.000, 1.618) to calculate support and resistance levels.",
+};
+
+// Let's add a type for the pivot points result
+type PivotPointsResult = {
+  pivot: number;
+  resistance: number[];
+  support: number[];
+  extraLevels?: {
+    r4?: number;
+    s4?: number;
+  };
 };
 
 export default function PivotPointsCalculator() {
@@ -79,7 +91,10 @@ export default function PivotPointsCalculator() {
       high: string;
       low: string;
       close: string;
+      open?: string;
       pivot: number;
+      resistance: number[];
+      support: number[];
       timestamp: Date;
       isFavorite?: boolean;
     }>
@@ -165,11 +180,52 @@ export default function PivotPointsCalculator() {
         return;
       }
 
+      // Calculate base pivot points for all methods
       const result = calculatePivotPoints(high, low, close, method, open);
 
-      setPivot(result.pivot);
-      setResistance(result.resistance);
-      setSupport(result.support);
+      // For Camarilla method, we'll calculate R4 and S4 here since they might not be included in the utility function
+      if (method === "camarilla") {
+        const range = high - low;
+        // Camarilla R4 and S4 calculation formula - correct formula
+        const r4 = close + (range * 1.5) / 2;
+        const s4 = close - (range * 1.5) / 2;
+
+        // Add R4 to the end for Camarilla to maintain R1, R2, R3, R4 order
+        setResistance([...result.resistance, r4]);
+
+        // Add S4 to the end since we're displaying in ascending order
+        setSupport([...result.support, s4]);
+
+        // Set pivot point
+        setPivot(result.pivot);
+      }
+      // For DeMark method, recalculate to ensure correct values
+      else if (method === "demark") {
+        // Correct DeMark formula based on the example
+        let x;
+        if (close < open) {
+          x = high + low * 2 + close;
+        } else if (close > open) {
+          x = high * 2 + low + close;
+        } else {
+          // close == open
+          x = high + low + close * 2;
+        }
+
+        const pivotValue = x / 4;
+
+        // Correct R1 and S1 formulas for DeMark
+        const r1 = x / 2 - low;
+        const s1 = x / 2 - high;
+
+        setPivot(pivotValue);
+        setResistance([r1, r1, r1]); // DeMark only has one level, duplicate for UI
+        setSupport([s1, s1, s1]); // DeMark only has one level, duplicate for UI
+      } else {
+        setPivot(result.pivot);
+        setResistance(result.resistance);
+        setSupport(result.support);
+      }
     } catch (error) {
       console.error("Error calculating pivot points:", error);
       setCalculationError(
@@ -186,12 +242,16 @@ export default function PivotPointsCalculator() {
     const close = parseFloat(closePrice) || 0;
 
     if (high > 0 && low > 0 && close > 0) {
+      // Create a more complete history entry
       const newEntry = {
         method,
         high: highPrice,
         low: lowPrice,
         close: closePrice,
+        open: openPrice, // Store open price for methods that use it
         pivot,
+        resistance: [...resistance], // Store complete resistance array
+        support: [...support], // Store complete support array
         timestamp: new Date(),
         isFavorite: false,
       };
@@ -202,7 +262,8 @@ export default function PivotPointsCalculator() {
           item.method === newEntry.method &&
           item.high === newEntry.high &&
           item.low === newEntry.low &&
-          item.close === newEntry.close
+          item.close === newEntry.close &&
+          (method !== "demark" || item.open === newEntry.open) // Include open for DeMark method
       );
 
       if (!exists) {
@@ -258,8 +319,8 @@ export default function PivotPointsCalculator() {
   };
 
   const formatPrice = (price: number) => {
-    // Format with 5 decimal places, but remove trailing zeros
-    return price.toFixed(5).replace(/\.?0+$/, "");
+    // Format with 5 decimal places without removing trailing zeros
+    return price.toFixed(5);
   };
 
   const formatTime = (date: Date) => {
@@ -344,6 +405,25 @@ export default function PivotPointsCalculator() {
     setLowPrice(item.low);
     setClosePrice(item.close);
 
+    // Restore open price if available
+    if (item.open) {
+      setOpenPrice(item.open);
+    }
+
+    // Set values with null checks to handle older history items
+    setPivot(item.pivot || 0);
+
+    if (item.resistance && Array.isArray(item.resistance)) {
+      setResistance(item.resistance);
+    } else {
+      // For older history items, recalculate
+      calculateResults();
+    }
+
+    if (item.support && Array.isArray(item.support)) {
+      setSupport(item.support);
+    }
+
     // Scroll to top of calculator
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollTo({ y: 0, animated: true });
@@ -367,14 +447,74 @@ export default function PivotPointsCalculator() {
   const shareCalculation = async (item: any) => {
     try {
       const method = getMethodLabel(item.method);
-      const message = `Forex Pivot Points (${method})
-High: ${item.high}
-Low: ${item.low} 
-Close: ${item.close}
-Pivot: ${formatPrice(item.pivot)}
-R1: ${formatPrice(resistance[0])}
-S1: ${formatPrice(support[0])}
-`;
+      let message = `Forex Pivot Points (${method})\n`;
+      message += `High: ${item.high}\n`;
+      message += `Low: ${item.low}\n`;
+      message += `Close: ${item.close}\n`;
+
+      if (item.method === "demark" && item.open) {
+        message += `Open: ${item.open}\n`;
+      }
+
+      if (item.method !== "camarilla" && item.method !== "demark") {
+        message += `Pivot: ${formatPrice(item.pivot || 0)}\n`;
+      }
+
+      // Method-specific levels
+      if (item.method === "camarilla") {
+        // Camarilla shows all levels including R4/S4
+        const resistanceLevels = item.resistance || [];
+        const supportLevels = item.support || [];
+
+        for (let i = 0; i < resistanceLevels.length; i++) {
+          const levelNum = resistanceLevels.length - i;
+          message += `R${levelNum}: ${formatPrice(resistanceLevels[i] || 0)}\n`;
+        }
+
+        for (let i = 0; i < supportLevels.length; i++) {
+          message += `S${i + 1}: ${formatPrice(supportLevels[i] || 0)}\n`;
+        }
+      } else if (item.method === "demark") {
+        // DeMark only has R1/S1
+        const resistanceValue =
+          item.resistance && item.resistance.length > 0
+            ? item.resistance[0]
+            : 0;
+        const supportValue =
+          item.support && item.support.length > 0 ? item.support[0] : 0;
+        message += `R1: ${formatPrice(resistanceValue)}\n`;
+        message += `S1: ${formatPrice(supportValue)}\n`;
+      } else {
+        // Standard methods with R1-R3, S1-S3
+        const resistanceLevels = item.resistance || [];
+        const supportLevels = item.support || [];
+
+        if (item.method === "woodie") {
+          // Woodie doesn't have R3/S3
+          for (let i = 1; i < resistanceLevels.length; i++) {
+            const levelNum = resistanceLevels.length - i;
+            message += `R${levelNum}: ${formatPrice(
+              resistanceLevels[i] || 0
+            )}\n`;
+          }
+
+          for (let i = 0; i < supportLevels.length - 1; i++) {
+            message += `S${i + 1}: ${formatPrice(supportLevels[i] || 0)}\n`;
+          }
+        } else {
+          // Standard methods
+          for (let i = 0; i < resistanceLevels.length; i++) {
+            const levelNum = resistanceLevels.length - i;
+            message += `R${levelNum}: ${formatPrice(
+              resistanceLevels[i] || 0
+            )}\n`;
+          }
+
+          for (let i = 0; i < supportLevels.length; i++) {
+            message += `S${i + 1}: ${formatPrice(supportLevels[i] || 0)}\n`;
+          }
+        }
+      }
 
       await Share.share({
         message,
@@ -389,18 +529,56 @@ S1: ${formatPrice(support[0])}
   // New function to share the current calculation
   const shareCurrentCalculation = async () => {
     try {
-      const message = `Forex Pivot Points (${getMethodLabel(method)})
-High: ${highPrice}
-Low: ${lowPrice} 
-Close: ${closePrice}
-Pivot: ${formatPrice(pivot)}
-R1: ${formatPrice(resistance[0])}
-S1: ${formatPrice(support[0])}
-R2: ${formatPrice(resistance[1])}
-S2: ${formatPrice(support[1])}
-R3: ${formatPrice(resistance[2])}
-S3: ${formatPrice(support[2])}
-`;
+      let message = `Forex Pivot Points (${getMethodLabel(method)})\n`;
+      message += `High: ${highPrice}\n`;
+      message += `Low: ${lowPrice}\n`;
+      message += `Close: ${closePrice}\n`;
+
+      if (method === "demark") {
+        message += `Open: ${openPrice}\n`;
+      }
+
+      if (method !== "camarilla" && method !== "demark") {
+        message += `Pivot: ${formatPrice(pivot)}\n`;
+      }
+
+      // Method-specific levels
+      if (method === "camarilla") {
+        // For Camarilla, include R4/S4
+        for (let i = 0; i < resistance.length; i++) {
+          const levelNum = resistance.length - i;
+          message += `R${levelNum}: ${formatPrice(resistance[i])}\n`;
+        }
+
+        for (let i = 0; i < support.length; i++) {
+          message += `S${i + 1}: ${formatPrice(support[i])}\n`;
+        }
+      } else if (method === "demark") {
+        // DeMark only shows R1/S1
+        message += `R1: ${formatPrice(resistance[0])}\n`;
+        message += `S1: ${formatPrice(support[0])}\n`;
+      } else if (method === "woodie") {
+        // Woodie doesn't have R3/S3
+        for (let i = 0; i < resistance.length; i++) {
+          if (i === 0) continue; // Skip R3 for Woodie
+          const levelNum = resistance.length - i;
+          message += `R${levelNum}: ${formatPrice(resistance[i])}\n`;
+        }
+
+        for (let i = 0; i < support.length - 1; i++) {
+          message += `S${i + 1}: ${formatPrice(support[i])}\n`;
+        }
+      } else {
+        // Standard methods
+        for (let i = 0; i < resistance.length; i++) {
+          const levelNum = resistance.length - i;
+          message += `R${levelNum}: ${formatPrice(resistance[i])}\n`;
+        }
+
+        for (let i = 0; i < support.length; i++) {
+          message += `S${i + 1}: ${formatPrice(support[i])}\n`;
+        }
+      }
 
       await Share.share({
         message,
@@ -802,44 +980,47 @@ S3: ${formatPrice(support[2])}
               </View>
             ) : (
               <>
-                <View
-                  style={[
-                    styles.pivotContainer,
-                    {
-                      backgroundColor: isDark
-                        ? "rgba(255, 255, 255, 0.05)"
-                        : "rgba(0, 0, 0, 0.05)",
-                      borderWidth: 0.5,
-                      borderColor: isDark
-                        ? "rgba(255, 255, 255, 0.1)"
-                        : "rgba(0, 0, 0, 0.1)",
-                    },
-                  ]}
-                >
-                  <Text
-                    variant="bodyMedium"
-                    style={{ color: isDark ? "#aaa" : "#666" }}
+                {/* Hide pivot point for Camarilla and DeMark methods */}
+                {method !== "camarilla" && method !== "demark" && (
+                  <View
+                    style={[
+                      styles.pivotContainer,
+                      {
+                        backgroundColor: isDark
+                          ? "rgba(255, 255, 255, 0.05)"
+                          : "rgba(0, 0, 0, 0.05)",
+                        borderWidth: 0.5,
+                        borderColor: isDark
+                          ? "rgba(255, 255, 255, 0.1)"
+                          : "rgba(0, 0, 0, 0.1)",
+                      },
+                    ]}
                   >
-                    Pivot Point (PP)
-                  </Text>
-                  <View style={styles.pivotValueContainer}>
                     <Text
-                      variant="headlineSmall"
-                      style={{ color: "#FFC107", fontWeight: "bold" }}
+                      variant="bodyMedium"
+                      style={{ color: isDark ? "#aaa" : "#666" }}
                     >
-                      {formatPrice(pivot)}
+                      Pivot Point (PP)
                     </Text>
-                    <TouchableOpacity
-                      onPress={() => copyToClipboard(pivot.toString())}
-                    >
-                      <Ionicons
-                        name="copy-outline"
-                        size={18}
-                        color={isDark ? "#aaa" : "#666"}
-                      />
-                    </TouchableOpacity>
+                    <View style={styles.pivotValueContainer}>
+                      <Text
+                        variant="headlineSmall"
+                        style={{ color: "#FFC107", fontWeight: "bold" }}
+                      >
+                        {formatPrice(pivot)}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => copyToClipboard(pivot.toString())}
+                      >
+                        <Ionicons
+                          name="copy-outline"
+                          size={18}
+                          color={isDark ? "#aaa" : "#666"}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
+                )}
 
                 <View style={styles.levelsContainer}>
                   <Surface
@@ -852,6 +1033,7 @@ S3: ${formatPrice(support[2])}
                         borderColor: isDark
                           ? "rgba(255, 255, 255, 0.1)"
                           : "rgba(0, 0, 0, 0.1)",
+                        marginBottom: 12,
                       },
                     ]}
                     elevation={0}
@@ -861,61 +1043,171 @@ S3: ${formatPrice(support[2])}
                         variant="titleMedium"
                         style={{
                           color: "#F44336",
-                          marginBottom: 5,
+                          marginBottom: 10,
                           textAlign: "center",
+                          fontWeight: "bold",
                         }}
                       >
-                        Resistance
+                        Resistance Levels
                       </Text>
                       <View style={styles.levelsList}>
-                        {resistance.map(
-                          (level, index) =>
-                            level !== 0 && (
-                              <View
-                                key={`r${index + 1}`}
-                                style={[
-                                  styles.levelRow,
-                                  {
-                                    borderBottomColor: isDark
-                                      ? "rgba(255, 255, 255, 0.05)"
-                                      : "rgba(0, 0, 0, 0.05)",
-                                  },
-                                ]}
-                              >
-                                <Text
-                                  variant="bodyMedium"
-                                  style={{
-                                    color: isDark ? "#fff" : "#000",
-                                    fontWeight: "bold",
-                                  }}
-                                >
-                                  R{resistance.length - index}
-                                </Text>
-                                <View style={styles.levelValueContainer}>
-                                  <Text
-                                    variant="bodyLarge"
-                                    style={{
-                                      color: "#F44336",
-                                      fontWeight: "bold",
-                                    }}
+                        {method === "camarilla"
+                          ? // For Camarilla, display R4, R3, R2, R1 (descending order)
+                            [...resistance].reverse().map((level, index) => {
+                              const rNumber = resistance.length - index; // R4, R3, R2, R1
+                              return (
+                                level !== 0 && (
+                                  <View
+                                    key={`r${rNumber}`}
+                                    style={[
+                                      styles.levelRow,
+                                      {
+                                        borderBottomColor: isDark
+                                          ? "rgba(255, 255, 255, 0.05)"
+                                          : "rgba(0, 0, 0, 0.05)",
+                                      },
+                                    ]}
                                   >
-                                    {formatPrice(level)}
-                                  </Text>
-                                  <TouchableOpacity
-                                    onPress={() =>
-                                      copyToClipboard(level.toString())
-                                    }
+                                    <Text
+                                      variant="bodyMedium"
+                                      style={{
+                                        color: isDark ? "#fff" : "#000",
+                                        fontWeight: "bold",
+                                        width: 40,
+                                      }}
+                                    >
+                                      R{rNumber}
+                                    </Text>
+                                    <View style={styles.levelValueContainer}>
+                                      <Text
+                                        variant="bodyLarge"
+                                        style={{
+                                          color: "#F44336",
+                                          fontWeight: "bold",
+                                        }}
+                                      >
+                                        {formatPrice(level)}
+                                      </Text>
+                                      <TouchableOpacity
+                                        onPress={() =>
+                                          copyToClipboard(level.toString())
+                                        }
+                                      >
+                                        <Ionicons
+                                          name="copy-outline"
+                                          size={16}
+                                          color={isDark ? "#aaa" : "#666"}
+                                        />
+                                      </TouchableOpacity>
+                                    </View>
+                                  </View>
+                                )
+                              );
+                            })
+                          : method === "demark"
+                          ? // For Demark, only show R1
+                            resistance.slice(0, 1).map(
+                              (level, index) =>
+                                level !== 0 && (
+                                  <View
+                                    key={`r1`}
+                                    style={[
+                                      styles.levelRow,
+                                      {
+                                        borderBottomColor: isDark
+                                          ? "rgba(255, 255, 255, 0.05)"
+                                          : "rgba(0, 0, 0, 0.05)",
+                                      },
+                                    ]}
                                   >
-                                    <Ionicons
-                                      name="copy-outline"
-                                      size={16}
-                                      color={isDark ? "#aaa" : "#666"}
-                                    />
-                                  </TouchableOpacity>
-                                </View>
-                              </View>
+                                    <Text
+                                      variant="bodyMedium"
+                                      style={{
+                                        color: isDark ? "#fff" : "#000",
+                                        fontWeight: "bold",
+                                        width: 40,
+                                      }}
+                                    >
+                                      R1
+                                    </Text>
+                                    <View style={styles.levelValueContainer}>
+                                      <Text
+                                        variant="bodyLarge"
+                                        style={{
+                                          color: "#F44336",
+                                          fontWeight: "bold",
+                                        }}
+                                      >
+                                        {formatPrice(level)}
+                                      </Text>
+                                      <TouchableOpacity
+                                        onPress={() =>
+                                          copyToClipboard(level.toString())
+                                        }
+                                      >
+                                        <Ionicons
+                                          name="copy-outline"
+                                          size={16}
+                                          color={isDark ? "#aaa" : "#666"}
+                                        />
+                                      </TouchableOpacity>
+                                    </View>
+                                  </View>
+                                )
                             )
-                        )}
+                          : // For other methods, use standard display
+                            resistance.map((level, index) => {
+                              return (
+                                level !== 0 &&
+                                // Hide R3 when woodie method is selected
+                                !(method === "woodie" && index === 0) && (
+                                  <View
+                                    key={`r${resistance.length - index}`}
+                                    style={[
+                                      styles.levelRow,
+                                      {
+                                        borderBottomColor: isDark
+                                          ? "rgba(255, 255, 255, 0.05)"
+                                          : "rgba(0, 0, 0, 0.05)",
+                                      },
+                                    ]}
+                                  >
+                                    <Text
+                                      variant="bodyMedium"
+                                      style={{
+                                        color: isDark ? "#fff" : "#000",
+                                        fontWeight: "bold",
+                                        width: 40,
+                                      }}
+                                    >
+                                      R{resistance.length - index}
+                                    </Text>
+                                    <View style={styles.levelValueContainer}>
+                                      <Text
+                                        variant="bodyLarge"
+                                        style={{
+                                          color: "#F44336",
+                                          fontWeight: "bold",
+                                        }}
+                                      >
+                                        {formatPrice(level)}
+                                      </Text>
+                                      <TouchableOpacity
+                                        onPress={() =>
+                                          copyToClipboard(level.toString())
+                                        }
+                                      >
+                                        <Ionicons
+                                          name="copy-outline"
+                                          size={16}
+                                          color={isDark ? "#aaa" : "#666"}
+                                        />
+                                      </TouchableOpacity>
+                                    </View>
+                                  </View>
+                                )
+                              );
+                            })}
                       </View>
                     </View>
                   </Surface>
@@ -939,75 +1231,130 @@ S3: ${formatPrice(support[2])}
                         variant="titleMedium"
                         style={{
                           color: "#4CAF50",
-                          marginBottom: 5,
+                          marginBottom: 10,
                           textAlign: "center",
+                          fontWeight: "bold",
                         }}
                       >
-                        Support
+                        Support Levels
                       </Text>
                       <View style={styles.levelsList}>
-                        {support.map(
-                          (level, index) =>
-                            level !== 0 && (
-                              <View
-                                key={`s${index + 1}`}
-                                style={[
-                                  styles.levelRow,
-                                  {
-                                    borderBottomColor: isDark
-                                      ? "rgba(255, 255, 255, 0.05)"
-                                      : "rgba(0, 0, 0, 0.05)",
-                                  },
-                                ]}
-                              >
-                                <Text
-                                  variant="bodyMedium"
-                                  style={{
-                                    color: isDark ? "#fff" : "#000",
-                                    fontWeight: "bold",
-                                  }}
-                                >
-                                  S{index + 1}
-                                </Text>
-                                <View style={styles.levelValueContainer}>
-                                  <Text
-                                    variant="bodyLarge"
-                                    style={{
-                                      color: "#4CAF50",
-                                      fontWeight: "bold",
-                                    }}
+                        {method === "demark"
+                          ? // For Demark, only show S1
+                            support.slice(0, 1).map(
+                              (level, index) =>
+                                level !== 0 && (
+                                  <View
+                                    key={`s1`}
+                                    style={[
+                                      styles.levelRow,
+                                      {
+                                        borderBottomColor: isDark
+                                          ? "rgba(255, 255, 255, 0.05)"
+                                          : "rgba(0, 0, 0, 0.05)",
+                                      },
+                                    ]}
                                   >
-                                    {formatPrice(level)}
-                                  </Text>
-                                  <TouchableOpacity
-                                    onPress={() =>
-                                      copyToClipboard(level.toString())
-                                    }
-                                  >
-                                    <Ionicons
-                                      name="copy-outline"
-                                      size={16}
-                                      color={isDark ? "#aaa" : "#666"}
-                                    />
-                                  </TouchableOpacity>
-                                </View>
-                              </View>
+                                    <Text
+                                      variant="bodyMedium"
+                                      style={{
+                                        color: isDark ? "#fff" : "#000",
+                                        fontWeight: "bold",
+                                        width: 40,
+                                      }}
+                                    >
+                                      S1
+                                    </Text>
+                                    <View style={styles.levelValueContainer}>
+                                      <Text
+                                        variant="bodyLarge"
+                                        style={{
+                                          color: "#4CAF50",
+                                          fontWeight: "bold",
+                                        }}
+                                      >
+                                        {formatPrice(level)}
+                                      </Text>
+                                      <TouchableOpacity
+                                        onPress={() =>
+                                          copyToClipboard(level.toString())
+                                        }
+                                      >
+                                        <Ionicons
+                                          name="copy-outline"
+                                          size={16}
+                                          color={isDark ? "#aaa" : "#666"}
+                                        />
+                                      </TouchableOpacity>
+                                    </View>
+                                  </View>
+                                )
                             )
-                        )}
+                          : support.map((level, index) => {
+                              // For standard support level display
+                              return (
+                                level !== 0 &&
+                                // Hide S3 when woodie method is selected
+                                !(method === "woodie" && index === 2) && (
+                                  <View
+                                    key={`s${
+                                      method === "camarilla" &&
+                                      index === support.length - 1
+                                        ? "4"
+                                        : index + 1
+                                    }`}
+                                    style={[
+                                      styles.levelRow,
+                                      {
+                                        borderBottomColor: isDark
+                                          ? "rgba(255, 255, 255, 0.05)"
+                                          : "rgba(0, 0, 0, 0.05)",
+                                      },
+                                    ]}
+                                  >
+                                    <Text
+                                      variant="bodyMedium"
+                                      style={{
+                                        color: isDark ? "#fff" : "#000",
+                                        fontWeight: "bold",
+                                        width: 40,
+                                      }}
+                                    >
+                                      S
+                                      {method === "camarilla" &&
+                                      index === support.length - 1
+                                        ? "4"
+                                        : index + 1}
+                                    </Text>
+                                    <View style={styles.levelValueContainer}>
+                                      <Text
+                                        variant="bodyLarge"
+                                        style={{
+                                          color: "#4CAF50",
+                                          fontWeight: "bold",
+                                        }}
+                                      >
+                                        {formatPrice(level)}
+                                      </Text>
+                                      <TouchableOpacity
+                                        onPress={() =>
+                                          copyToClipboard(level.toString())
+                                        }
+                                      >
+                                        <Ionicons
+                                          name="copy-outline"
+                                          size={16}
+                                          color={isDark ? "#aaa" : "#666"}
+                                        />
+                                      </TouchableOpacity>
+                                    </View>
+                                  </View>
+                                )
+                              );
+                            })}
                       </View>
                     </View>
                   </Surface>
-                </View>
-
-                <View style={styles.infoContainer}>
-                  <Chip
-                    icon="information"
-                    mode="outlined"
-                    style={{ borderColor: isDark ? "#444" : "#ddd" }}
-                    textStyle={{ color: isDark ? "#fff" : "#000" }}
-                  >
-                    Tap any value to copy to clipboard
-                  </Chip>
                 </View>
               </>
             )}
@@ -1149,112 +1496,341 @@ S3: ${formatPrice(support[2])}
                           onPress={() => loadCalculation(item)}
                           activeOpacity={0.7}
                         >
-                          <View style={styles.historyItemLeft}>
-                            <View style={styles.historyItemTopRow}>
-                              <Text
-                                variant="bodyMedium"
-                                style={[
-                                  styles.historyItemMethod,
-                                  { color: isDark ? "#fff" : "#000" },
-                                ]}
-                              >
-                                {getMethodLabel(item.method)}
-                              </Text>
-                              {item.isFavorite && (
-                                <Ionicons
-                                  name="star"
-                                  size={16}
-                                  color="#6200ee"
-                                  style={{ marginLeft: 4 }}
-                                />
+                          <View style={styles.historyItemContent}>
+                            {/* Method and Timestamp */}
+                            <View style={styles.historyItemHeader}>
+                              <View style={styles.historyItemTitleRow}>
+                                <Text
+                                  variant="titleMedium"
+                                  style={[
+                                    styles.historyItemMethod,
+                                    { color: isDark ? "#fff" : "#000" },
+                                  ]}
+                                >
+                                  {getMethodLabel(item.method)}
+                                </Text>
+                                {item.isFavorite && (
+                                  <Ionicons
+                                    name="star"
+                                    size={16}
+                                    color="#6200ee"
+                                    style={{ marginLeft: 4 }}
+                                  />
+                                )}
+                                <Text
+                                  style={{
+                                    color: isDark
+                                      ? "rgba(255,255,255,0.5)"
+                                      : "rgba(0,0,0,0.4)",
+                                    fontSize: 10,
+                                    marginLeft: "auto",
+                                  }}
+                                >
+                                  {getRelativeTime(item.timestamp)}
+                                </Text>
+                              </View>
+
+                              {/* Price Values */}
+                              <View style={styles.historyItemPrices}>
+                                <Text
+                                  variant="bodySmall"
+                                  style={{
+                                    color: isDark
+                                      ? "rgba(255,255,255,0.7)"
+                                      : "rgba(0,0,0,0.6)",
+                                    fontWeight: "600",
+                                  }}
+                                >
+                                  H:{" "}
+                                  <Text style={{ fontWeight: "normal" }}>
+                                    {item.high}
+                                  </Text>
+                                  {"  "}L:{" "}
+                                  <Text style={{ fontWeight: "normal" }}>
+                                    {item.low}
+                                  </Text>
+                                  {"  "}C:{" "}
+                                  <Text style={{ fontWeight: "normal" }}>
+                                    {item.close}
+                                  </Text>
+                                  {item.method === "demark" && item.open
+                                    ? "  O: " + item.open
+                                    : ""}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {/* Pivot Points */}
+                            <View style={styles.historyItemResults}>
+                              {/* Show the appropriate results based on method */}
+                              {item.method === "camarilla" ? (
+                                <View style={styles.historyValueGrid}>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      R4:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.resistanceText,
+                                      ]}
+                                    >
+                                      {formatPrice(
+                                        item.resistance &&
+                                          item.resistance.length > 3
+                                          ? item.resistance[3]
+                                          : 0
+                                      )}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      R1:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.resistanceText,
+                                      ]}
+                                    >
+                                      {formatPrice(
+                                        item.resistance &&
+                                          item.resistance.length > 0
+                                          ? item.resistance[0]
+                                          : 0
+                                      )}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      S1:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.supportText,
+                                      ]}
+                                    >
+                                      {formatPrice(
+                                        item.support && item.support.length > 0
+                                          ? item.support[0]
+                                          : 0
+                                      )}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      S4:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.supportText,
+                                      ]}
+                                    >
+                                      {formatPrice(
+                                        item.support && item.support.length > 3
+                                          ? item.support[3]
+                                          : 0
+                                      )}
+                                    </Text>
+                                  </View>
+                                </View>
+                              ) : item.method === "demark" ? (
+                                <View style={styles.historyValueGrid}>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      R1:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.resistanceText,
+                                      ]}
+                                    >
+                                      {formatPrice(
+                                        item.resistance &&
+                                          item.resistance.length > 0
+                                          ? item.resistance[0]
+                                          : 0
+                                      )}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      S1:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.supportText,
+                                      ]}
+                                    >
+                                      {formatPrice(
+                                        item.support && item.support.length > 0
+                                          ? item.support[0]
+                                          : 0
+                                      )}
+                                    </Text>
+                                  </View>
+                                </View>
+                              ) : item.method === "woodie" ? (
+                                <View style={styles.historyValueGrid}>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      PP:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.pivotText,
+                                      ]}
+                                    >
+                                      {formatPrice(item.pivot || 0)}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      R1:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.resistanceText,
+                                      ]}
+                                    >
+                                      {formatPrice(
+                                        item.resistance &&
+                                          item.resistance.length > 1
+                                          ? item.resistance[1]
+                                          : 0
+                                      )}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      S1:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.supportText,
+                                      ]}
+                                    >
+                                      {formatPrice(
+                                        item.support && item.support.length > 0
+                                          ? item.support[0]
+                                          : 0
+                                      )}
+                                    </Text>
+                                  </View>
+                                </View>
+                              ) : (
+                                <View style={styles.historyValueGrid}>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      PP:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.pivotText,
+                                      ]}
+                                    >
+                                      {formatPrice(item.pivot || 0)}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      R1:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.resistanceText,
+                                      ]}
+                                    >
+                                      {formatPrice(
+                                        item.resistance &&
+                                          item.resistance.length > 0
+                                          ? item.resistance[0]
+                                          : 0
+                                      )}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.historyValueRow}>
+                                    <Text style={styles.historyValueLabel}>
+                                      S1:
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.historyValueText,
+                                        styles.supportText,
+                                      ]}
+                                    >
+                                      {formatPrice(
+                                        item.support && item.support.length > 0
+                                          ? item.support[0]
+                                          : 0
+                                      )}
+                                    </Text>
+                                  </View>
+                                </View>
                               )}
-                            </View>
 
-                            <View style={styles.historyItemDetails}>
-                              <Text
-                                variant="bodySmall"
-                                style={{
-                                  color: isDark
-                                    ? "rgba(255,255,255,0.6)"
-                                    : "rgba(0,0,0,0.5)",
-                                }}
-                              >
-                                H: {item.high} L: {item.low} C: {item.close}
-                              </Text>
-                              <Text
-                                style={{
-                                  color: isDark
-                                    ? "rgba(255,255,255,0.5)"
-                                    : "rgba(0,0,0,0.4)",
-                                  fontSize: 10,
-                                  paddingLeft: 5,
-                                }}
-                              >
-                                {getRelativeTime(item.timestamp)}
-                              </Text>
-                            </View>
-                          </View>
-
-                          <View style={styles.historyItemRight}>
-                            <View style={styles.historyItemActions}>
-                              <IconButton
-                                icon={item.isFavorite ? "star" : "star-outline"}
-                                size={18}
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  toggleFavorite(filteredHistory.indexOf(item));
-                                }}
-                                iconColor={
-                                  item.isFavorite
-                                    ? "#6200ee"
-                                    : isDark
-                                    ? "rgba(255,255,255,0.5)"
-                                    : "rgba(0,0,0,0.4)"
-                                }
-                                style={styles.actionButton}
-                              />
-                              <IconButton
-                                icon="share-variant"
-                                size={18}
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  shareCalculation(item);
-                                }}
-                                iconColor={
-                                  isDark
-                                    ? "rgba(255,255,255,0.5)"
-                                    : "rgba(0,0,0,0.4)"
-                                }
-                                style={styles.actionButton}
-                              />
-                              <IconButton
-                                icon="trash-can-outline"
-                                size={18}
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  deleteHistoryItem(
-                                    filteredHistory.indexOf(item)
-                                  );
-                                }}
-                                iconColor={
-                                  isDark
-                                    ? "rgba(255,255,255,0.5)"
-                                    : "rgba(0,0,0,0.4)"
-                                }
-                                style={styles.actionButton}
-                              />
-                            </View>
-
-                            <View style={styles.pivotDisplay}>
-                              <Text
-                                variant="bodyMedium"
-                                style={{
-                                  color: "#FFC107",
-                                  fontWeight: "bold",
-                                }}
-                              >
-                                PP: {formatPrice(item.pivot)}
-                              </Text>
+                              {/* Action buttons */}
+                              <View style={styles.historyItemActions}>
+                                <IconButton
+                                  icon={
+                                    item.isFavorite ? "star" : "star-outline"
+                                  }
+                                  size={20}
+                                  onPress={(e) => {
+                                    e.stopPropagation();
+                                    toggleFavorite(
+                                      filteredHistory.indexOf(item)
+                                    );
+                                  }}
+                                  iconColor={
+                                    item.isFavorite
+                                      ? "#6200ee"
+                                      : isDark
+                                      ? "rgba(255,255,255,0.5)"
+                                      : "rgba(0,0,0,0.4)"
+                                  }
+                                  style={styles.actionButton}
+                                />
+                                <IconButton
+                                  icon="share-variant"
+                                  size={20}
+                                  onPress={(e) => {
+                                    e.stopPropagation();
+                                    shareCalculation(item);
+                                  }}
+                                  iconColor={
+                                    isDark
+                                      ? "rgba(255,255,255,0.5)"
+                                      : "rgba(0,0,0,0.4)"
+                                  }
+                                  style={styles.actionButton}
+                                />
+                                <IconButton
+                                  icon="trash-can-outline"
+                                  size={20}
+                                  onPress={(e) => {
+                                    e.stopPropagation();
+                                    deleteHistoryItem(
+                                      filteredHistory.indexOf(item)
+                                    );
+                                  }}
+                                  iconColor={
+                                    isDark
+                                      ? "rgba(255,255,255,0.5)"
+                                      : "rgba(0,0,0,0.4)"
+                                  }
+                                  style={styles.actionButton}
+                                />
+                              </View>
                             </View>
                           </View>
                         </TouchableOpacity>
@@ -1390,13 +1966,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   levelsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
+    flexDirection: "column",
     marginBottom: 16,
   },
   levelCard: {
-    flex: 1,
+    width: "100%",
     overflow: "hidden",
   },
   levelCardContent: {
@@ -1459,25 +2033,61 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: "#6200ee",
   },
-  historyItemLeft: {
+  historyItemContent: {
     flex: 1,
+    width: "100%",
   },
-  historyItemTopRow: {
+  historyItemHeader: {
+    marginBottom: 8,
+  },
+  historyItemTitleRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 4,
   },
   historyItemMethod: {
     fontWeight: "600",
-    marginBottom: 2,
   },
-  historyItemDetails: {
+  historyItemPrices: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  historyItemResults: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    width: "80%",
+    marginTop: 4,
   },
-  historyItemRight: {
-    alignItems: "flex-end",
+  historyValueGrid: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginRight: 8,
+  },
+  historyValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 12,
+    marginBottom: 4,
+  },
+  historyValueLabel: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "600",
+    marginRight: 4,
+  },
+  historyValueText: {
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  resistanceText: {
+    color: "#F44336",
+  },
+  supportText: {
+    color: "#4CAF50",
+  },
+  pivotText: {
+    color: "#FFC107",
   },
   historyItemActions: {
     flexDirection: "row",
@@ -1489,11 +2099,6 @@ const styles = StyleSheet.create({
     padding: 0,
     width: 24,
     height: 24,
-  },
-  pivotDisplay: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
   },
   emptyHistory: {
     alignItems: "center",
@@ -1582,5 +2187,13 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: {
     fontSize: 16,
+  },
+  demarkInfo: {
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    backgroundColor: "#FFEBEB",
+    borderWidth: 1,
+    borderColor: "#F44336",
   },
 });

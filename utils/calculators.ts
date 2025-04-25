@@ -129,25 +129,26 @@ export function calculateFibonacciLevels(
   retracements: Array<{ level: number; price: number }>;
   extensions: Array<{ level: number; price: number }>;
 } {
-  const diff = isUptrend ? highPrice - lowPrice : lowPrice - highPrice;
-  const basePrice = isUptrend ? highPrice : lowPrice;
+  const diff = highPrice - lowPrice;
 
   // Fibonacci retracement levels
   const retracementLevels = [0.236, 0.382, 0.5, 0.618, 0.786];
   const retracements = retracementLevels.map((level) => ({
     level: level * 100,
-    price: isUptrend ? basePrice - diff * level : basePrice + diff * level,
+    price: isUptrend
+      ? highPrice - diff * level // Uptrend: retrace from high down
+      : lowPrice + diff * level, // Downtrend: retrace from low up
   }));
 
-  // Fibonacci extension levels
+  // Fibonacci extension levels - formula matches reference app
   const extensionLevels = [
-    2.618, 2.0, 1.618, 1.5, 1.382, 1.236, 1.0, 0.618, 0.5, 0.382, 0.236,
+    2.618, 2.0, 1.618, 1.5, 1.382, 1.236, 1.0, 0.786, 0.618, 0.5, 0.382, 0.236,
   ];
   const extensions = extensionLevels.map((level) => ({
     level: level * 100,
     price: isUptrend
-      ? basePrice + diff * (level - 1)
-      : basePrice - diff * (level - 1),
+      ? lowPrice + diff * (level + 1) // Uptrend: extend beyond high
+      : highPrice - diff * (level + 1), // Downtrend: extend below low
   }));
 
   return { retracements, extensions };
@@ -157,10 +158,11 @@ export function calculateFibonacciLevels(
 export function calculatePipDifference(
   priceA: number,
   priceB: number,
-  currencyPair: string
+  currencyPair: string,
+  pipDecimalPlaces?: number
 ): number {
-  // Determine pip decimal place based on currency pair
-  const pipDecimal = currencyPair.includes("JPY") ? 2 : 4;
+  // Determine pip decimal place based on currency pair or override with provided value
+  const pipDecimal = pipDecimalPlaces || (currencyPair.includes("JPY") ? 2 : 4);
   const pipFactor = Math.pow(10, pipDecimal);
 
   // Calculate pip difference

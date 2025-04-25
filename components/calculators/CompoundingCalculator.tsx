@@ -2352,9 +2352,8 @@ export default function CompoundingCalculator() {
                   >
                     {isNaN(results.endBalance)
                       ? "0.00"
-                      : formatCurrencyWithSymbol(
+                      : formatCurrency(
                           results.endBalance,
-                          currency
                         ).replace(/[€$£¥]/g, "")}
                   </Text>
                 </View>

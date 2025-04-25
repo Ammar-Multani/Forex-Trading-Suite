@@ -3,10 +3,16 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useRef,
   ReactNode,
+  useCallback,
 } from "react";
 import { Alert } from "react-native";
-import { fetchExchangeRate, fetchAllRequiredRates } from "../utils/api";
+import {
+  fetchExchangeRate,
+  fetchAllRequiredRates,
+  apiManager,
+} from "../services/api";
 import { CURRENCY_PAIRS } from "../constants/currencies";
 
 interface ExchangeRateContextType {
@@ -52,142 +58,110 @@ export const ExchangeRateProvider: React.FC<ExchangeRateProviderProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Track which currency pairs have been loaded to avoid redundant fetches
   const [loadedPairs, setLoadedPairs] = useState<Set<string>>(new Set());
-  // Track pending pairs to load
-  const [pendingPairs, setPendingPairs] = useState<Set<string>>(new Set());
-  // Debounce timer to batch multiple requests
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(
-    null
-  );
+
+  // Component ID for ApiManager registration
+  const componentId = useRef(`exchange-rate-provider-${Date.now()}`).current;
 
   // Function to get exchange rate between two currencies
-  const getExchangeRate = async (
-    fromCurrency: string,
-    toCurrency: string
-  ): Promise<number> => {
-    try {
-      // If same currency, return 1
-      if (fromCurrency === toCurrency) {
-        return 1;
-      }
+  const getExchangeRate = useCallback(
+    async (fromCurrency: string, toCurrency: string): Promise<number> => {
+      try {
+        // If same currency, return 1
+        if (fromCurrency === toCurrency) {
+          return 1;
+        }
 
-      // Try to get from cached rates first
-      if (rates[fromCurrency] && rates[fromCurrency][toCurrency]) {
-        return rates[fromCurrency][toCurrency];
-      }
+        // Try to get from cached rates first
+        if (rates[fromCurrency] && rates[fromCurrency][toCurrency]) {
+          return rates[fromCurrency][toCurrency];
+        }
 
-      // Fetch from API
+        // Use the ApiManager to fetch the rate
+        setError(null);
+        const rate = await apiManager.requestCurrencyPair(
+          fromCurrency,
+          toCurrency
+        );
+
+        // Update our local cache state
+        setRates((prevRates) => ({
+          ...prevRates,
+          [fromCurrency]: {
+            ...(prevRates[fromCurrency] || {}),
+            [toCurrency]: rate,
+          },
+        }));
+
+        return rate;
+      } catch (error) {
+        console.error("Error in getExchangeRate:", error);
+        const errorMessage = `Unable to get exchange rate for ${fromCurrency}/${toCurrency}. Please try again later.`;
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
+    },
+    [rates]
+  );
+
+  // Function to load specific currency pairs - using ApiManager for batching
+  const loadCurrencyPairs = useCallback(
+    async (pairs: string[]) => {
+      if (pairs.length === 0) return;
+
+      // Filter out pairs that are already loaded
+      const newPairs = pairs.filter((pair) => !loadedPairs.has(pair));
+      if (newPairs.length === 0) return;
+
+      setIsLoading(true);
       setError(null);
-      const rate = await fetchExchangeRate(fromCurrency, toCurrency);
 
-      // Update rates cache
-      setRates((prevRates) => ({
-        ...prevRates,
-        [fromCurrency]: {
-          ...(prevRates[fromCurrency] || {}),
-          [toCurrency]: rate,
-        },
-      }));
+      try {
+        // Format pairs for ApiManager
+        const parsedPairs = newPairs.map((pair) => ({
+          base: pair.substring(0, 3),
+          quote: pair.substring(3, 6),
+        }));
 
-      return rate;
-    } catch (error) {
-      console.error("Error in getExchangeRate:", error);
-      const errorMessage = `Unable to get exchange rate for ${fromCurrency}/${toCurrency}. Please try again later.`;
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
-  };
+        // Request all pairs at once through ApiManager
+        const newRates = await apiManager.requestMultiplePairs(parsedPairs);
 
-  // Function to load specific currency pairs - now adds to a queue
-  const loadCurrencyPairs = async (pairs: string[]) => {
-    if (pairs.length === 0) return;
+        // Update forex pair rates
+        setForexPairRates((prev) => ({ ...prev, ...newRates }));
 
-    // Filter out pairs that are already loaded or pending
-    const newPairs = pairs.filter(
-      (pair) => !loadedPairs.has(pair) && !pendingPairs.has(pair)
-    );
+        // Mark pairs as loaded
+        setLoadedPairs((prev) => {
+          const newSet = new Set(prev);
+          newPairs.forEach((pair) => newSet.add(pair));
+          return newSet;
+        });
 
-    if (newPairs.length === 0) return;
+        // Update last updated timestamp
+        setLastUpdated(new Date());
+      } catch (error: any) {
+        console.error("Error loading currency pairs:", error);
+        const errorMessage =
+          error.message ||
+          "Failed to load currency pairs. Please check your internet connection and try again.";
+        setError(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [loadedPairs]
+  );
 
-    // Add to pending pairs
-    setPendingPairs((prev) => {
-      const newSet = new Set(prev);
-      newPairs.forEach((pair) => newSet.add(pair));
-      return newSet;
-    });
-
-    // Debounce to batch requests
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-
-    const timer = setTimeout(() => {
-      fetchPendingPairs();
-    }, 300); // 300ms debounce
-
-    setDebounceTimer(timer);
-  };
-
-  // Function to fetch all pending pairs
-  const fetchPendingPairs = async () => {
-    if (pendingPairs.size === 0) return;
-
+  // Function to refresh rates using ApiManager
+  const refreshRates = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Convert pending pairs to array
-      const pairsToLoad = Array.from(pendingPairs);
+      // Use ApiManager to refresh all rates at once
+      await apiManager.refreshAllRates();
 
-      // Essential base currencies for cross rates
-      const baseCurrencies = ["USD", "EUR", "GBP"];
-
-      // Fetch all required rates in one operation
-      const { crossRates, forexPairs } = await fetchAllRequiredRates(
-        baseCurrencies,
-        pairsToLoad
-      );
-
-      // Update rates
-      setRates((prev) => ({ ...prev, ...crossRates }));
-
-      // Update forex pair rates
-      setForexPairRates((prev) => ({ ...prev, ...forexPairs }));
-
-      // Mark as loaded
-      setLoadedPairs((prev) => {
-        const newSet = new Set(prev);
-        pairsToLoad.forEach((pair) => newSet.add(pair));
-        return newSet;
-      });
-
-      // Clear pending pairs
-      setPendingPairs(new Set());
-
-      // Update last updated timestamp
-      setLastUpdated(new Date());
-    } catch (error: any) {
-      console.error("Error loading currency pairs:", error);
-      const errorMessage =
-        error.message ||
-        "Failed to load currency pairs. Please check your internet connection and try again.";
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Function to refresh rates - now uses the unified API call
-  const refreshRates = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Essential base currencies
-      const baseCurrencies = ["USD", "EUR", "GBP"];
-
-      // Essential forex pairs
+      // We need to refresh our local state after the global refresh
+      // First, reload the essential forex pairs
       const essentialPairs = [
         "EURUSD",
         "GBPUSD",
@@ -197,17 +171,36 @@ export const ExchangeRateProvider: React.FC<ExchangeRateProviderProps> = ({
         "AUDUSD",
       ];
 
-      // Fetch all in a single operation
-      const { crossRates, forexPairs } = await fetchAllRequiredRates(
-        baseCurrencies,
-        essentialPairs
-      );
+      // Format pairs for ApiManager
+      const parsedPairs = essentialPairs.map((pair) => ({
+        base: pair.substring(0, 3),
+        quote: pair.substring(3, 6),
+      }));
+
+      // Get the latest rates from ApiManager
+      const newRates = await apiManager.requestMultiplePairs(parsedPairs);
+
+      // Update our local state
+      setForexPairRates((prev) => ({ ...prev, ...newRates }));
+
+      // Update cross rates for USD, EUR, GBP
+      const baseCurrencies = ["USD", "EUR", "GBP"];
+      const crossRates: Record<string, Record<string, number>> = {};
+
+      for (const base of baseCurrencies) {
+        crossRates[base] = {};
+        for (const quote of baseCurrencies) {
+          if (base !== quote) {
+            crossRates[base][quote] = await apiManager.requestCurrencyPair(
+              base,
+              quote
+            );
+          }
+        }
+      }
 
       // Update rates
-      setRates(crossRates);
-
-      // Update forex pair rates
-      setForexPairRates((prev) => ({ ...prev, ...forexPairs }));
+      setRates((prev) => ({ ...prev, ...crossRates }));
 
       // Mark pairs as loaded
       setLoadedPairs((prev) => {
@@ -224,30 +217,25 @@ export const ExchangeRateProvider: React.FC<ExchangeRateProviderProps> = ({
         error.message ||
         "Failed to update exchange rates. Please check your internet connection and try again.";
       setError(errorMessage);
-      Alert.alert("Error", errorMessage);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  // Clean up debounce timer
+  // Register with ApiManager when the context is mounted
   useEffect(() => {
-    return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-    };
-  }, [debounceTimer]);
+    apiManager.registerComponent(componentId);
 
-  // Initial fetch of rates
+    // Clean up on unmount
+    return () => {
+      apiManager.unregisterComponent(componentId);
+    };
+  }, [componentId]);
+
+  // Initial load
   useEffect(() => {
     refreshRates();
-
-    // Set up periodic refresh (every 15 minutes)
-    const intervalId = setInterval(refreshRates, 15 * 60 * 1000);
-
-    return () => clearInterval(intervalId);
-  }, []);
+  }, [refreshRates]);
 
   return (
     <ExchangeRateContext.Provider

@@ -311,6 +311,217 @@ class ForexApiClient {
   }
 }
 
+// ===== GLOBAL API MANAGER =====
+
+/**
+ * Global API Manager for centralized request handling,
+ * advanced caching, and request batching across the entire app
+ */
+export class ApiManager {
+  private static instance: ApiManager;
+  private lastFullRefresh: number = 0;
+  private pendingRequests: Set<string> = new Set();
+  private refreshTimer: NodeJS.Timeout | null = null;
+  private readonly REFRESH_INTERVAL = 15 * 60 * 1000; // 15 minutes
+  private readonly DEBOUNCE_TIME = 250; // 250ms for batching requests
+  private refreshQueue: Array<() => void> = [];
+  private isRefreshing = false;
+
+  // Track which screens/components have registered for updates
+  private activeComponents: Set<string> = new Set();
+
+  private constructor() {
+    // Schedule periodic refresh
+    this.schedulePeriodicRefresh();
+  }
+
+  public static getInstance(): ApiManager {
+    if (!ApiManager.instance) {
+      ApiManager.instance = new ApiManager();
+    }
+    return ApiManager.instance;
+  }
+
+  /**
+   * Register a component as active (e.g., when mounted)
+   * This helps in tracking which components need exchange rates
+   */
+  public registerComponent(componentId: string): void {
+    this.activeComponents.add(componentId);
+
+    // Refresh data if it's stale (over 15 minutes) when a new component registers
+    const now = Date.now();
+    if (now - this.lastFullRefresh > this.REFRESH_INTERVAL) {
+      this.refreshAllRates();
+    }
+  }
+
+  /**
+   * Unregister a component (e.g., when unmounted)
+   */
+  public unregisterComponent(componentId: string): void {
+    this.activeComponents.delete(componentId);
+  }
+
+  /**
+   * Schedule a full refresh of all exchange rates
+   */
+  private schedulePeriodicRefresh(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
+
+    this.refreshTimer = setInterval(() => {
+      // Only refresh if there are active components
+      if (this.activeComponents.size > 0) {
+        this.refreshAllRates();
+      }
+    }, this.REFRESH_INTERVAL);
+  }
+
+  /**
+   * Refresh all exchange rates at once
+   * This fetches all commonly used rates in one batch
+   */
+  public async refreshAllRates(): Promise<void> {
+    // Prevent multiple simultaneous refreshes
+    if (this.isRefreshing) {
+      return new Promise((resolve) => {
+        this.refreshQueue.push(resolve);
+      });
+    }
+
+    this.isRefreshing = true;
+
+    try {
+      // Use the existing forex API client to refresh rates
+      // This automatically updates the central cache
+      const forexClient = ForexApiClient.getInstance();
+      forexClient.clearCache();
+
+      // Essential base currencies
+      const baseCurrencies = ["USD", "EUR", "GBP"];
+
+      // Common currency pairs that most calculations rely on
+      const commonPairs = [
+        "EURUSD",
+        "GBPUSD",
+        "USDJPY",
+        "USDCHF",
+        "USDCAD",
+        "AUDUSD",
+        "EURGBP",
+        "EURJPY",
+        "GBPJPY",
+      ];
+
+      // Create batch requests for all pairs
+      const batchRequests = [];
+
+      // Add requests for all base currencies against each other
+      for (const base of baseCurrencies) {
+        for (const quote of baseCurrencies) {
+          if (base !== quote) {
+            batchRequests.push(fetchExchangeRate(base, quote));
+          }
+        }
+      }
+
+      // Add requests for common forex pairs
+      for (const pair of commonPairs) {
+        const base = pair.substring(0, 3);
+        const quote = pair.substring(3, 6);
+        batchRequests.push(fetchExchangeRate(base, quote));
+      }
+
+      // Execute all requests in parallel
+      // The fetchExchangeRate function will handle batching internally
+      await Promise.all(batchRequests);
+
+      this.lastFullRefresh = Date.now();
+    } catch (error) {
+      console.error("Error refreshing all rates:", error);
+      // Don't throw, just log the error
+    } finally {
+      this.isRefreshing = false;
+
+      // Resolve any pending promises
+      while (this.refreshQueue.length > 0) {
+        const resolve = this.refreshQueue.shift();
+        if (resolve) resolve();
+      }
+    }
+  }
+
+  /**
+   * Request a specific currency pair rate
+   * If multiple requests for the same pair happen in quick succession,
+   * they will be batched together
+   */
+  public async requestCurrencyPair(
+    baseCurrency: string,
+    quoteCurrency: string
+  ): Promise<number> {
+    const pairKey = `${baseCurrency}${quoteCurrency}`;
+
+    // Add to pending requests
+    this.pendingRequests.add(pairKey);
+
+    // Return promise that will be resolved when the batch is processed
+    return new Promise<number>((resolve, reject) => {
+      // Use the existing forex API client which has built-in batching
+      setTimeout(async () => {
+        try {
+          const rate = await fetchExchangeRate(baseCurrency, quoteCurrency);
+          resolve(rate);
+        } catch (error) {
+          reject(error);
+        } finally {
+          this.pendingRequests.delete(pairKey);
+        }
+      }, this.DEBOUNCE_TIME);
+    });
+  }
+
+  /**
+   * Request multiple currency pairs at once
+   * More efficient than requesting them individually
+   */
+  public async requestMultiplePairs(
+    pairs: Array<{ base: string; quote: string }>
+  ): Promise<Record<string, number>> {
+    // Convert to array of pair strings
+    const pairStrings = pairs.map((p) => `${p.base}${p.quote}`);
+
+    try {
+      // Create request promises
+      const requests = pairs.map((pair) =>
+        this.requestCurrencyPair(pair.base, pair.quote).then((rate) => ({
+          pair: `${pair.base}${pair.quote}`,
+          rate,
+        }))
+      );
+
+      // Execute all requests in parallel
+      const results = await Promise.all(requests);
+
+      // Format the results
+      const ratesMap: Record<string, number> = {};
+      for (const result of results) {
+        ratesMap[result.pair] = result.rate;
+      }
+
+      return ratesMap;
+    } catch (error) {
+      console.error("Error requesting multiple pairs:", error);
+      throw error;
+    }
+  }
+}
+
+// Create and export the singleton instance
+export const apiManager = ApiManager.getInstance();
+
 // ===== PUBLIC API =====
 
 // Get the singleton instance

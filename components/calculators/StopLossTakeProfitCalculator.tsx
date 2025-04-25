@@ -4,6 +4,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { TextInput, Divider, RadioButton, Text } from "react-native-paper";
 import {
@@ -20,9 +21,25 @@ import AccountCurrencySelector from "../ui/AccountCurrencySelector";
 import { useTheme } from "../../contexts/ThemeContext";
 import PageHeader from "../ui/PageHeader";
 import env from "../../config/env";
-import { getCurrencyPairByName } from "../../constants/currencies";
+import {
+  getCurrencyPairByName,
+  CurrencyPair,
+} from "../../constants/currencies";
 import { Ionicons } from "@expo/vector-icons";
-import { fetchForexPairRates } from "../../services/api";
+import NetInfo from "@react-native-community/netinfo";
+import useApiManager from "../../hooks/useApiManager";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// Storage keys for persisting calculator values
+const STORAGE_KEYS = {
+  ACCOUNT_CURRENCY: "sltp_account_currency",
+  CURRENCY_PAIR: "sltp_currency_pair",
+  ENTRY_PRICE: "sltp_entry_price",
+  STOP_LOSS_PRICE: "sltp_stop_loss_price",
+  TAKE_PROFIT_PRICE: "sltp_take_profit_price",
+  POSITION_SIZE: "sltp_position_size",
+  POSITION_TYPE: "sltp_position_type",
+};
 
 // Exchange rate data interface
 interface ExchangeRateData {
@@ -43,25 +60,31 @@ interface TraderMadeResponse {
 }
 
 export default function StopLossTakeProfitCalculator() {
+  // Initialize the ApiManager hook with component name for tracking
+  const {
+    getExchangeRate,
+    getForexPairRate,
+    isLoading: isApiLoading,
+    error: apiError,
+  } = useApiManager("StopLossTakeProfitCalculator");
+
   // Add a ref to track if this is the first mount
   const isInitialMount = useRef(true);
+  const apiCallInProgress = useRef(false);
 
   // State for inputs
   const { isDark } = useTheme();
   const [accountCurrency, setAccountCurrency] = useState("USD");
   const [currencyPair, setCurrencyPair] = useState("EUR/USD");
-  const [entryPrice, setEntryPrice] = useState("1.2000");
-  const [stopLossPrice, setStopLossPrice] = useState("1.1950");
-  const [takeProfitPrice, setTakeProfitPrice] = useState("1.2100");
+  const [entryPrice, setEntryPrice] = useState("0");
+  const [stopLossPrice, setStopLossPrice] = useState("0");
+  const [takeProfitPrice, setTakeProfitPrice] = useState("0");
   const [positionSize, setPositionSize] = useState("1");
   const [positionType, setPositionType] = useState("long");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // State for exchange rates
-  const [exchangeRates, setExchangeRates] = useState<
-    Record<string, ExchangeRateData>
-  >({});
-  const [isLoadingRates, setIsLoadingRates] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState(1);
   const [isRefreshingEntryPrice, setIsRefreshingEntryPrice] = useState(false);
 
   // State for calculation errors
@@ -78,291 +101,30 @@ export default function StopLossTakeProfitCalculator() {
   const [takeProfitAmount, setTakeProfitAmount] = useState(0);
   const [pipValue, setPipValue] = useState(0);
 
-  // First, define updateStopLossTakeProfitPrices
-  const updateStopLossTakeProfitPrices = useCallback(
-    (entryPriceValue: number) => {
-      const pairData = getCurrencyPairByName(currencyPair);
-      if (!pairData) return;
-
-      // Get pip decimal places for this currency pair
-      const pipDecimalPlaces = getPipDecimalPlaces(pairData.quote);
-      const pipSize = Math.pow(10, -pipDecimalPlaces);
-
-      // Default pips for stop loss and take profit
-      const defaultStopLossPips = 50; // 50 pips for stop loss
-      const defaultTakeProfitPips = 100; // 100 pips for take profit
-
-      let stopLossValue: number;
-      let takeProfitValue: number;
-
-      if (positionType === "long") {
-        // For long positions: Entry - SL pips, Entry + TP pips
-        stopLossValue = entryPriceValue - defaultStopLossPips * pipSize;
-        takeProfitValue = entryPriceValue + defaultTakeProfitPips * pipSize;
-      } else {
-        // For short positions: Entry + SL pips, Entry - TP pips
-        stopLossValue = entryPriceValue + defaultStopLossPips * pipSize;
-        takeProfitValue = entryPriceValue - defaultTakeProfitPips * pipSize;
-      }
-
-      // Update state with formatted values
-      setStopLossPrice(stopLossValue.toFixed(5));
-      setTakeProfitPrice(takeProfitValue.toFixed(5));
-    },
-    [currencyPair, positionType]
-  );
-
-  // Then define fetchCurrentRate which depends on updateStopLossTakeProfitPrices
-  const fetchCurrentRate = useCallback(async () => {
+  // Save calculator values to AsyncStorage
+  const saveCalculatorValues = useCallback(async () => {
     try {
-      setIsRefreshingEntryPrice(true);
-      const pairNameForApi = currencyPair.replace("/", "");
-      const rates = await fetchForexPairRates([pairNameForApi]);
+      const valuesToSave = {
+        [STORAGE_KEYS.ACCOUNT_CURRENCY]: accountCurrency,
+        [STORAGE_KEYS.CURRENCY_PAIR]: currencyPair,
+        [STORAGE_KEYS.ENTRY_PRICE]: entryPrice,
+        [STORAGE_KEYS.STOP_LOSS_PRICE]: stopLossPrice,
+        [STORAGE_KEYS.TAKE_PROFIT_PRICE]: takeProfitPrice,
+        [STORAGE_KEYS.POSITION_SIZE]: positionSize,
+        [STORAGE_KEYS.POSITION_TYPE]: positionType,
+      };
 
-      if (rates && rates[pairNameForApi]) {
-        const currentRate = rates[pairNameForApi];
-        setEntryPrice(currentRate.toFixed(5));
-        setLastUpdated(new Date());
+      // Save each value to AsyncStorage
+      await Promise.all(
+        Object.entries(valuesToSave).map(([key, value]) =>
+          AsyncStorage.setItem(key, value.toString())
+        )
+      );
 
-        // Update stop loss and take profit prices based on the new entry price
-        updateStopLossTakeProfitPrices(currentRate);
-      }
+      console.log("Calculator values saved successfully");
     } catch (error) {
-      console.error("Error fetching current rate:", error);
-      // Don't update entry price if fetch fails
-    } finally {
-      setIsRefreshingEntryPrice(false);
+      console.error("Error saving calculator values:", error);
     }
-  }, [currencyPair, updateStopLossTakeProfitPrices]);
-
-  // Finally define handleCurrencyPairChange which depends on fetchCurrentRate
-  const handleCurrencyPairChange = useCallback(
-    (pair: string) => {
-      setCurrencyPair(pair);
-      // Defer the fetch to the next tick to ensure state is updated
-      setTimeout(() => fetchCurrentRate(), 0);
-    },
-    [fetchCurrentRate]
-  );
-
-  // Update stop loss and take profit when position type changes
-  useEffect(() => {
-    if (entryPrice) {
-      updateStopLossTakeProfitPrices(parseFloat(entryPrice));
-    }
-  }, [positionType, entryPrice, updateStopLossTakeProfitPrices]);
-
-  // In the useEffect with fetchCurrentRate dependency
-  useEffect(() => {
-    // Only fetch on initial mount or when the dependencies genuinely change
-    if (isInitialMount.current) {
-      // This is the first time the component mounted
-      isInitialMount.current = false;
-      fetchCurrentRate();
-    }
-    // Don't add fetchCurrentRate as dependency to prevent loops
-  }, []); // Empty dependency array, will only run once
-
-  // Fetch exchange rate for currency conversion with better error handling
-  const fetchExchangeRate = useCallback(
-    async (fromCurrency: string, toCurrency: string) => {
-      if (fromCurrency === toCurrency) {
-        return 1; // Same currency, no conversion needed
-      }
-
-      const pairKey = `${fromCurrency}${toCurrency}`;
-      const reversePairKey = `${toCurrency}${fromCurrency}`;
-
-      // Check if we already have this rate and it's less than 1 hour old
-      const oneHourAgo = Date.now() - 3600000;
-      if (
-        exchangeRates[pairKey] &&
-        !exchangeRates[pairKey].loading &&
-        !exchangeRates[pairKey].error &&
-        exchangeRates[pairKey].timestamp > oneHourAgo
-      ) {
-        return exchangeRates[pairKey].rate;
-      }
-
-      // Check if we have the reverse rate that's still valid
-      if (
-        exchangeRates[reversePairKey] &&
-        !exchangeRates[reversePairKey].loading &&
-        !exchangeRates[reversePairKey].error &&
-        exchangeRates[reversePairKey].timestamp > oneHourAgo
-      ) {
-        return 1 / exchangeRates[reversePairKey].rate;
-      }
-
-      // Mark as loading
-      setIsLoadingRates(true);
-      setExchangeRates((prev) => ({
-        ...prev,
-        [pairKey]: { rate: 0, timestamp: 0, loading: true },
-      }));
-
-      try {
-        // First try direct rate API
-        const url = `https://marketdata.tradermade.com/api/v1/live?currency=${pairKey}&api_key=${env.traderMadeApiKey}`;
-        let response = await fetch(url);
-        let data: TraderMadeResponse;
-
-        if (!response.ok) {
-          // If direct rate fails, try reverse rate
-          const reverseUrl = `https://marketdata.tradermade.com/api/v1/live?currency=${reversePairKey}&api_key=${env.traderMadeApiKey}`;
-          response = await fetch(reverseUrl);
-
-          if (!response.ok) {
-            throw new Error(
-              `API returned ${response.status}: ${response.statusText}`
-            );
-          }
-
-          data = (await response.json()) as TraderMadeResponse;
-
-          if (data.quotes && data.quotes.length > 0) {
-            const quote = data.quotes[0];
-            const reverseRate = quote.mid || quote.price || 0;
-
-            if (reverseRate <= 0) {
-              throw new Error("Invalid exchange rate returned");
-            }
-
-            // Store the rate and return inverse
-            const rate = 1 / reverseRate;
-            setExchangeRates((prev) => ({
-              ...prev,
-              [pairKey]: {
-                rate,
-                timestamp: data.timestamp || Date.now(),
-                loading: false,
-              },
-            }));
-
-            return rate;
-          }
-        } else {
-          data = (await response.json()) as TraderMadeResponse;
-
-          if (data.quotes && data.quotes.length > 0) {
-            const quote = data.quotes[0];
-            const rate = quote.mid || quote.price || 0;
-
-            if (rate <= 0) {
-              throw new Error("Invalid exchange rate returned");
-            }
-
-            setExchangeRates((prev) => ({
-              ...prev,
-              [pairKey]: {
-                rate,
-                timestamp: data.timestamp || Date.now(),
-                loading: false,
-              },
-            }));
-
-            return rate;
-          }
-        }
-
-        // If we got here, we didn't get a valid rate
-        throw new Error("No exchange rate data available");
-      } catch (error) {
-        console.error(`Error fetching exchange rate for ${pairKey}:`, error);
-
-        // Try using a fallback approximate rate for common pairs if we have it
-        const fallbackRate = getTradingPairFallbackRate(
-          fromCurrency,
-          toCurrency
-        );
-        if (fallbackRate > 0) {
-          console.log(`Using fallback rate for ${pairKey}: ${fallbackRate}`);
-          setUsingFallbackRates(true);
-          setExchangeRates((prev) => ({
-            ...prev,
-            [pairKey]: {
-              rate: fallbackRate,
-              timestamp: Date.now(),
-              loading: false,
-              usingFallback: true,
-            },
-          }));
-          return fallbackRate;
-        }
-
-        setExchangeRates((prev) => ({
-          ...prev,
-          [pairKey]: {
-            rate: 0,
-            timestamp: 0,
-            loading: false,
-            error:
-              error instanceof Error ? error.message : "Failed to fetch rate",
-          },
-        }));
-        return 0;
-      } finally {
-        setIsLoadingRates(false);
-      }
-    },
-    [exchangeRates]
-  );
-
-  // Add this helper function for fallback rates in case API fails
-  const getTradingPairFallbackRate = (from: string, to: string): number => {
-    // Common exchange rate approximations - these should be updated periodically
-    // Only return a value if we have a reasonable approximation
-    const fallbackRates: Record<string, number> = {
-      EURUSD: 1.08,
-      USDJPY: 150.0,
-      GBPUSD: 1.27,
-      USDCHF: 0.89,
-      USDCAD: 1.37,
-      AUDUSD: 0.67,
-      NZDUSD: 0.61,
-      EURGBP: 0.85,
-      EURJPY: 162.0,
-      GBPJPY: 190.0,
-      GBPCAD: 1.74,
-    };
-
-    const key = `${from}${to}`;
-    if (fallbackRates[key]) {
-      return fallbackRates[key];
-    }
-
-    // Try reverse rate
-    const reverseKey = `${to}${from}`;
-    if (fallbackRates[reverseKey]) {
-      return 1 / fallbackRates[reverseKey];
-    }
-
-    return 0; // No fallback available
-  };
-
-  // Fetch required exchange rates when currency pair or account currency changes
-  useEffect(() => {
-    const fetchRequiredRates = async () => {
-      const pairData = getCurrencyPairByName(currencyPair);
-      if (!pairData) return;
-
-      const { base, quote } = pairData;
-
-      // Fetch rate for the selected currency pair
-      await fetchExchangeRate(base, quote);
-
-      // If account currency is different from quote currency, fetch that rate too
-      if (quote !== accountCurrency) {
-        await fetchExchangeRate(quote, accountCurrency);
-      }
-    };
-
-    fetchRequiredRates();
-  }, [currencyPair, accountCurrency, fetchExchangeRate]);
-
-  // Calculate results when inputs change
-  useEffect(() => {
-    calculateResults();
   }, [
     accountCurrency,
     currencyPair,
@@ -371,114 +133,328 @@ export default function StopLossTakeProfitCalculator() {
     takeProfitPrice,
     positionSize,
     positionType,
-    exchangeRates,
   ]);
 
-  const calculateResults = async () => {
-    setCalculationError(null); // Reset error state
+  // Load calculator values from AsyncStorage
+  const loadCalculatorValues = useCallback(async () => {
+    try {
+      // Load all values from AsyncStorage
+      const [
+        savedAccountCurrency,
+        savedCurrencyPair,
+        savedEntryPrice,
+        savedStopLossPrice,
+        savedTakeProfitPrice,
+        savedPositionSize,
+        savedPositionType,
+      ] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.ACCOUNT_CURRENCY),
+        AsyncStorage.getItem(STORAGE_KEYS.CURRENCY_PAIR),
+        AsyncStorage.getItem(STORAGE_KEYS.ENTRY_PRICE),
+        AsyncStorage.getItem(STORAGE_KEYS.STOP_LOSS_PRICE),
+        AsyncStorage.getItem(STORAGE_KEYS.TAKE_PROFIT_PRICE),
+        AsyncStorage.getItem(STORAGE_KEYS.POSITION_SIZE),
+        AsyncStorage.getItem(STORAGE_KEYS.POSITION_TYPE),
+      ]);
 
-    const entry = parseFloat(entryPrice) || 0;
-    const stopLoss = parseFloat(stopLossPrice) || 0;
-    const takeProfit = parseFloat(takeProfitPrice) || 0;
-    const size = parseFloat(positionSize) || 0;
-    const isLong = positionType === "long";
+      // Update state with saved values if they exist
+      if (savedAccountCurrency) setAccountCurrency(savedAccountCurrency);
+      if (savedCurrencyPair) setCurrencyPair(savedCurrencyPair);
+      if (savedEntryPrice) setEntryPrice(savedEntryPrice);
+      if (savedStopLossPrice) setStopLossPrice(savedStopLossPrice);
+      if (savedTakeProfitPrice) setTakeProfitPrice(savedTakeProfitPrice);
+      if (savedPositionSize) setPositionSize(savedPositionSize);
+      if (savedPositionType) setPositionType(savedPositionType);
 
-    if (entry <= 0 || stopLoss <= 0 || takeProfit <= 0 || size <= 0) return;
-
-    const pairData = getCurrencyPairByName(currencyPair);
-    if (!pairData) return;
-
-    // Get the exchange rate for accurate pip value calculation
-    const { base, quote } = pairData;
-
-    // Calculate pip differences based on long/short position
-    let stopLossDiff, takeProfitDiff;
-
-    if (isLong) {
-      stopLossDiff = entry - stopLoss;
-      takeProfitDiff = takeProfit - entry;
-    } else {
-      stopLossDiff = stopLoss - entry;
-      takeProfitDiff = entry - takeProfit;
+      console.log("Calculator values loaded successfully");
+    } catch (error) {
+      console.error("Error loading calculator values:", error);
     }
+  }, []);
 
-    // Safety check - ensure differences are positive
-    if (stopLossDiff <= 0 || takeProfitDiff <= 0) {
-      setCalculationError(
-        isLong
-          ? "For a Long position, Stop Loss must be below Entry Price and Take Profit must be above Entry Price"
-          : "For a Short position, Stop Loss must be above Entry Price and Take Profit must be below Entry Price"
+  // Calculate results function
+  const calculateResults = useCallback(async () => {
+    try {
+      setCalculationError(null);
+
+      const entry = parseFloat(entryPrice) || 0;
+      const stopLoss = parseFloat(stopLossPrice) || 0;
+      const takeProfit = parseFloat(takeProfitPrice) || 0;
+      const size = parseFloat(positionSize) || 0;
+      const isLong = positionType === "long";
+
+      if (entry <= 0 || stopLoss <= 0 || takeProfit <= 0 || size <= 0) {
+        return;
+      }
+
+      const pairData = getCurrencyPairByName(currencyPair);
+      if (!pairData) {
+        return;
+      }
+
+      // Calculate pip differences based on long/short position
+      let stopLossDiff, takeProfitDiff;
+
+      if (isLong) {
+        stopLossDiff = entry - stopLoss;
+        takeProfitDiff = takeProfit - entry;
+      } else {
+        stopLossDiff = stopLoss - entry;
+        takeProfitDiff = entry - takeProfit;
+      }
+
+      // Get pip decimal places for this currency pair
+      const pipDecimalPlaces = getPipDecimalPlaces(pairData.quote);
+
+      // Calculate pips - use the correct pip factor based on the currency pair's definition
+      const pipFactor = Math.pow(10, pipDecimalPlaces);
+
+      // Use absolute values for pip calculations to allow any configuration
+      const stopLossPipsValue = Math.abs(stopLossDiff) * pipFactor;
+      const takeProfitPipsValue = Math.abs(takeProfitDiff) * pipFactor;
+
+      // Calculate pip value in quote currency
+      const lotSize = size * 100000; // Standard lot is 100,000 units
+      const pipValueQuote = calculatePipValueInQuoteCurrency(
+        pairData as CurrencyPair,
+        lotSize,
+        1, // for single pip
+        pipDecimalPlaces
       );
+
+      // Get exchange rate for converting pip value to account currency if needed
+      let quoteToAccountRate = 1;
+      if (pairData.quote !== accountCurrency) {
+        try {
+          // Use the hook's getExchangeRate which handles caching correctly
+          quoteToAccountRate = await getExchangeRate(
+            pairData.quote,
+            accountCurrency
+          );
+        } catch (error) {
+          console.error(`Error fetching exchange rate: ${error}`);
+          setCalculationError("Could not fetch exchange rate for calculation");
+          return;
+        }
+      }
+
+      // Convert pip value to account currency
+      const pipValueAccount = calculatePipValueInAccountCurrency(
+        pipValueQuote,
+        pairData.quote,
+        accountCurrency,
+        quoteToAccountRate
+      );
+
+      // Calculate monetary amounts using absolute values
+      const stopLossAmountValue = stopLossPipsValue * pipValueAccount;
+      const takeProfitAmountValue = takeProfitPipsValue * pipValueAccount;
+
+      // Calculate risk/reward ratio - handle case where values are not in recommended positions
+      let riskRewardRatioValue;
+
+      // Show warning instead of error if SL/TP are in non-standard positions
+      if (
+        (isLong && (stopLossDiff <= 0 || takeProfitDiff <= 0)) ||
+        (!isLong && (stopLossDiff <= 0 || takeProfitDiff <= 0))
+      ) {
+        // Display a warning instead of an error
+        setCalculationError(
+          isLong
+            ? "For optimal Long position, Stop Loss should be below Entry Price and Take Profit above Entry Price"
+            : "For optimal Short position, Stop Loss should be above Entry Price and Take Profit below Entry Price"
+        );
+
+        // Still calculate a ratio but use 0 for display
+        riskRewardRatioValue = 0;
+      } else {
+        // Normal calculation when values are in expected positions
+        riskRewardRatioValue = takeProfitAmountValue / stopLossAmountValue;
+      }
+
+      // Update state with calculated values
+      setStopLossPips(stopLossPipsValue);
+      setTakeProfitPips(takeProfitPipsValue);
+      setStopLossAmount(stopLossAmountValue);
+      setTakeProfitAmount(takeProfitAmountValue);
+      setPipValue(pipValueAccount);
+      setRiskRewardRatio(riskRewardRatioValue);
+      setExchangeRate(quoteToAccountRate);
+    } catch (error) {
+      console.error("Calculation error:", error);
+      if (error instanceof Error) {
+        setCalculationError(error.message);
+      } else {
+        setCalculationError("An error occurred during calculation");
+      }
+    }
+  }, [
+    accountCurrency,
+    currencyPair,
+    entryPrice,
+    stopLossPrice,
+    takeProfitPrice,
+    positionSize,
+    positionType,
+    getExchangeRate,
+  ]);
+
+  // Simple function to fetch current exchange rate and ONLY update entry price
+  const fetchCurrentRate = useCallback(async () => {
+    // Prevent multiple API calls simultaneously
+    if (apiCallInProgress.current) {
       return;
     }
 
-    // Get pip decimal places for this currency pair
-    const pipDecimalPlaces = getPipDecimalPlaces(quote);
+    apiCallInProgress.current = true;
+    setIsRefreshingEntryPrice(true);
+    setCalculationError(null);
 
-    // Calculate pips - use the correct pip factor based on the currency pair's definition
-    const pipFactor = Math.pow(10, pipDecimalPlaces);
-    const stopLossPipsValue = stopLossDiff * pipFactor;
-    const takeProfitPipsValue = takeProfitDiff * pipFactor;
-
-    // Calculate pip value in quote currency
-    const lotSize = size * 100000; // Standard lot is 100,000 units
-    const pipValueQuote = calculatePipValueInQuoteCurrency(
-      { base, quote },
-      lotSize,
-      1, // for single pip
-      pipDecimalPlaces
-    );
-
-    // Get exchange rate for converting pip value to account currency if needed
-    let quoteToAccountRate = 1;
-    if (quote !== accountCurrency) {
-      const rateKey = `${quote}${accountCurrency}`;
-      const reverseRateKey = `${accountCurrency}${quote}`;
-
-      if (
-        exchangeRates[rateKey] &&
-        !exchangeRates[rateKey].loading &&
-        !exchangeRates[rateKey].error
-      ) {
-        quoteToAccountRate = exchangeRates[rateKey].rate;
-      } else if (
-        exchangeRates[reverseRateKey] &&
-        !exchangeRates[reverseRateKey].loading &&
-        !exchangeRates[reverseRateKey].error
-      ) {
-        quoteToAccountRate = 1 / exchangeRates[reverseRateKey].rate;
-      } else {
-        // No valid exchange rate available - ensure we show this in the UI
-        console.warn(
-          `No exchange rate available for ${quote} to ${accountCurrency}`
+    try {
+      // Check network connectivity first
+      const netInfoState = await NetInfo.fetch();
+      if (!netInfoState.isConnected) {
+        Alert.alert(
+          "No Internet Connection",
+          "Please connect to the internet to fetch live exchange rates."
         );
-        setIsLoadingRates(false);
+        setIsRefreshingEntryPrice(false);
+        apiCallInProgress.current = false;
+        return;
       }
+
+      // Format the currency pair for API
+      const pairData = getCurrencyPairByName(currencyPair);
+      if (!pairData) {
+        throw new Error(`Invalid currency pair: ${currencyPair}`);
+      }
+
+      // Use the pairString (e.g., "EURUSD") for the API call
+      const pairString = currencyPair.replace("/", "");
+      const rate = await getForexPairRate(pairString);
+
+      // ONLY update the entry price field - no other fields
+      setEntryPrice(rate.toFixed(5));
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error("Error fetching current rate:", error);
+      if (error instanceof Error) {
+        setCalculationError(`Failed to fetch rate: ${error.message}`);
+      } else {
+        setCalculationError("Failed to fetch current exchange rate");
+      }
+    } finally {
+      setIsRefreshingEntryPrice(false);
+      apiCallInProgress.current = false;
+    }
+  }, [currencyPair, getForexPairRate]);
+
+  // Handle currency pair change
+  const handleCurrencyPairChange = useCallback((pair: string) => {
+    setCurrencyPair(pair);
+    // When currency pair changes, we'll fetch the rate to update entry price only
+  }, []);
+
+  // Handle account currency change
+  const handleAccountCurrencyChange = useCallback((currency: string) => {
+    setAccountCurrency(currency);
+  }, []);
+
+  // Handle text input changes with save functionality
+  const handleEntryPriceChange = useCallback((text: string) => {
+    setEntryPrice(text);
+  }, []);
+
+  const handleStopLossPriceChange = useCallback((text: string) => {
+    setStopLossPrice(text);
+  }, []);
+
+  const handleTakeProfitPriceChange = useCallback((text: string) => {
+    setTakeProfitPrice(text);
+  }, []);
+
+  const handlePositionSizeChange = useCallback((text: string) => {
+    setPositionSize(text);
+  }, []);
+
+  const handlePositionTypeChange = useCallback((value: string) => {
+    setPositionType(value);
+  }, []);
+
+  // Update when currency pair changes - fetch new rate to update entry price
+  useEffect(() => {
+    // Skip on initial render since we'll fetch in the mount effect
+    if (isInitialMount.current) {
+      return;
     }
 
-    // Convert pip value to account currency
-    const pipValueAccount = calculatePipValueInAccountCurrency(
-      pipValueQuote,
-      quote,
-      accountCurrency,
-      quoteToAccountRate
-    );
+    // Fetch rate when currency pair changes
+    fetchCurrentRate();
+  }, [currencyPair, fetchCurrentRate]);
 
-    // Calculate monetary amounts
-    const stopLossAmountValue = stopLossPipsValue * pipValueAccount;
-    const takeProfitAmountValue = takeProfitPipsValue * pipValueAccount;
+  // Fetch on initial mount and load saved values
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
 
-    // Calculate risk/reward ratio
-    const riskRewardRatioValue = takeProfitAmountValue / stopLossAmountValue;
+      // First load saved values
+      loadCalculatorValues().then(() => {
+        // Only fetch current rate if we don't have a saved entry price
+        // or if the saved entry price is 0
+        const entryPriceValue = parseFloat(entryPrice);
+        if (entryPriceValue <= 0) {
+          fetchCurrentRate();
+        }
+      });
+    }
+  }, [fetchCurrentRate, loadCalculatorValues, entryPrice]);
 
-    // Update state with calculated values
-    setStopLossPips(stopLossPipsValue);
-    setTakeProfitPips(takeProfitPipsValue);
-    setStopLossAmount(stopLossAmountValue);
-    setTakeProfitAmount(takeProfitAmountValue);
-    setPipValue(pipValueAccount);
-    setRiskRewardRatio(riskRewardRatioValue);
-  };
+  // Save values whenever they change
+  useEffect(() => {
+    if (!isInitialMount.current) {
+      saveCalculatorValues();
+    }
+  }, [
+    accountCurrency,
+    currencyPair,
+    entryPrice,
+    stopLossPrice,
+    takeProfitPrice,
+    positionSize,
+    positionType,
+    saveCalculatorValues,
+  ]);
+
+  // Calculate results when inputs change
+  useEffect(() => {
+    if (
+      !isInitialMount.current &&
+      parseFloat(entryPrice) > 0 &&
+      parseFloat(stopLossPrice) > 0 &&
+      parseFloat(takeProfitPrice) > 0
+    ) {
+      // Only calculate if all required fields have values
+      calculateResults();
+    }
+  }, [
+    accountCurrency,
+    entryPrice,
+    stopLossPrice,
+    takeProfitPrice,
+    positionSize,
+    positionType,
+    calculateResults,
+  ]);
+
+  // Use API error if available
+  useEffect(() => {
+    if (apiError) {
+      setCalculationError(apiError);
+    }
+  }, [apiError]);
+
+  // Combine loading states
+  const isLoading = isRefreshingEntryPrice || isApiLoading;
 
   return (
     <View style={styles.container}>
@@ -490,13 +466,13 @@ export default function StopLossTakeProfitCalculator() {
         <View style={styles.inputsContainer}>
           <AccountCurrencySelector
             value={accountCurrency}
-            onChange={setAccountCurrency}
+            onChange={handleAccountCurrencyChange}
           />
 
           <View
             style={[
               styles.currencyPairSection,
-              isRefreshingEntryPrice && styles.loadingSection,
+              isLoading && styles.loadingSection,
             ]}
           >
             <CurrencyPairSelector
@@ -509,7 +485,7 @@ export default function StopLossTakeProfitCalculator() {
               <TextInput
                 label="Entry Price"
                 value={entryPrice}
-                onChangeText={setEntryPrice}
+                onChangeText={handleEntryPriceChange}
                 keyboardType="numeric"
                 style={styles.entryPriceInput}
                 mode="outlined"
@@ -526,10 +502,15 @@ export default function StopLossTakeProfitCalculator() {
                   <TextInput.Icon
                     icon={() => (
                       <TouchableOpacity
-                        onPress={fetchCurrentRate}
-                        disabled={isRefreshingEntryPrice}
+                        onPress={() => {
+                          if (!isLoading) {
+                            fetchCurrentRate();
+                          }
+                        }}
+                        disabled={isLoading}
+                        style={{ padding: 5 }}
                       >
-                        {isRefreshingEntryPrice ? (
+                        {isLoading ? (
                           <ActivityIndicator size={20} color="#6200ee" />
                         ) : (
                           <Ionicons name="refresh" size={20} color="#6200ee" />
@@ -549,7 +530,7 @@ export default function StopLossTakeProfitCalculator() {
 
           <Text style={styles.radioLabel}>Position Type</Text>
           <RadioButton.Group
-            onValueChange={(value) => setPositionType(value)}
+            onValueChange={handlePositionTypeChange}
             value={positionType}
           >
             <View style={styles.radioContainer}>
@@ -581,7 +562,7 @@ export default function StopLossTakeProfitCalculator() {
           <TextInput
             label="Stop Loss Price"
             value={stopLossPrice}
-            onChangeText={setStopLossPrice}
+            onChangeText={handleStopLossPriceChange}
             keyboardType="numeric"
             style={styles.input}
             mode="outlined"
@@ -599,7 +580,7 @@ export default function StopLossTakeProfitCalculator() {
           <TextInput
             label="Take Profit Price"
             value={takeProfitPrice}
-            onChangeText={setTakeProfitPrice}
+            onChangeText={handleTakeProfitPriceChange}
             keyboardType="numeric"
             style={styles.input}
             mode="outlined"
@@ -617,7 +598,7 @@ export default function StopLossTakeProfitCalculator() {
           <TextInput
             label="Position Size (Lots)"
             value={positionSize}
-            onChangeText={setPositionSize}
+            onChangeText={handlePositionSizeChange}
             keyboardType="numeric"
             style={styles.input}
             mode="outlined"
@@ -636,16 +617,36 @@ export default function StopLossTakeProfitCalculator() {
         <Divider style={styles.divider} />
 
         <View style={styles.resultsContainer}>
-          {calculationError ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{calculationError}</Text>
-            </View>
-          ) : isLoadingRates ? (
+          {calculationError && !isLoading ? (
+            <>
+              <View style={styles.warningContainer}>
+                <Text style={styles.warningText}>{calculationError}</Text>
+              </View>
+
+              {/* Only show risk/reward ratio and pip value when there's an error/warning */}
+              <ResultDisplay
+                label="Risk/Reward Ratio"
+                value={`1:${riskRewardRatio.toFixed(2)}`}
+                color="#FFC107"
+                isLarge
+              />
+
+              <ResultDisplay
+                label="Pip Value"
+                value={formatCurrency(pipValue, accountCurrency)}
+                color="#2196F3"
+              />
+
+              {usingFallbackRates && (
+                <Text style={styles.fallbackRateNote}>
+                  * Using approximate exchange rates. Latest rates unavailable.
+                </Text>
+              )}
+            </>
+          ) : isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#6200ee" />
-              <Text style={styles.loadingText}>
-                Fetching latest exchange rates...
-              </Text>
+              <Text style={styles.loadingText}>Calculating...</Text>
             </View>
           ) : (
             <>
@@ -659,12 +660,12 @@ export default function StopLossTakeProfitCalculator() {
               <View style={styles.resultsRow}>
                 <View style={styles.resultColumn}>
                   <ResultDisplay
-                    label="Stop Loss"
+                    label="Amount at risk"
                     value={formatCurrency(stopLossAmount, accountCurrency)}
                     color="#FF5252"
                   />
                   <ResultDisplay
-                    label="Stop Loss Pips"
+                    label="Stop Loss"
                     value={`${stopLossPips.toFixed(1)} pips`}
                     color="#FF5252"
                   />
@@ -672,12 +673,12 @@ export default function StopLossTakeProfitCalculator() {
 
                 <View style={styles.resultColumn}>
                   <ResultDisplay
-                    label="Take Profit"
+                    label="Take Profit Amount"
                     value={formatCurrency(takeProfitAmount, accountCurrency)}
                     color="#4CAF50"
                   />
                   <ResultDisplay
-                    label="Take Profit Pips"
+                    label="Take Profit"
                     value={`${takeProfitPips.toFixed(1)} pips`}
                     color="#4CAF50"
                   />
@@ -772,12 +773,19 @@ const styles = StyleSheet.create({
     color: "#FF5252",
     textAlign: "center",
   },
-  fallbackRateNote: {
-    fontSize: 12,
-    color: "#FF9800",
-    fontStyle: "italic",
+  warningContainer: {
+    backgroundColor: "rgba(255, 193, 7, 0.1)",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 193, 7, 0.3)",
+  },
+  warningText: {
+    color: "#FFC107",
     textAlign: "center",
-    marginTop: 16,
+    fontSize: 13,
+    fontStyle: "italic",
   },
   currencyPairSection: {
     marginBottom: 16,
@@ -791,5 +799,12 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginTop: 4,
     fontStyle: "italic",
+  },
+  fallbackRateNote: {
+    fontSize: 12,
+    color: "#FF9800",
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 16,
   },
 });

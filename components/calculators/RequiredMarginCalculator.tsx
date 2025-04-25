@@ -49,7 +49,7 @@ export default function MarginCalculator() {
         title="Required Margin Calculator"
         subtitle="Calculate the margin required for a position"
       />
-      <CalculatorCard title="Required Margin Calculator">
+      <CalculatorCard title="Calculate  Margin">
         <View style={styles.inputsContainer}>
           <AccountCurrencySelector
             value={accountCurrency}

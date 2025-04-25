@@ -5,6 +5,9 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  FlatList,
+  Alert,
+  Share,
 } from "react-native";
 import {
   TextInput,
@@ -16,15 +19,23 @@ import {
   Surface,
   Menu,
 } from "react-native-paper";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { calculatePipDifference } from "../../utils/calculators";
 import CalculatorCard from "../ui/CalculatorCard";
 import CurrencyPairSelector from "../ui/CurrencyPairSelector";
 import { useTheme } from "../../contexts/ThemeContext";
 import PageHeader from "../ui/PageHeader";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Get the screen width for animations
 const { width } = Dimensions.get("window");
+
+// Storage keys
+const CURRENCY_PAIR_KEY = "pip-diff-calculator-currency-pair";
+const PRICE_A_KEY = "pip-diff-calculator-price-a";
+const PRICE_B_KEY = "pip-diff-calculator-price-b";
+const PIP_DECIMAL_PLACES_KEY = "pip-diff-calculator-pip-decimal-places";
+const ADVANCED_OPTIONS_KEY = "pip-diff-calculator-advanced-options";
 
 export default function PipDifferenceCalculator() {
   const { isDark } = useTheme();
@@ -33,6 +44,8 @@ export default function PipDifferenceCalculator() {
   const [currencyPair, setCurrencyPair] = useState("EUR/USD");
   const [priceA, setPriceA] = useState("1.2000");
   const [priceB, setPriceB] = useState("1.1950");
+  const [pipDecimalPlaces, setPipDecimalPlaces] = useState(4);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
   // State for results
   const [pipDifference, setPipDifference] = useState(0);
@@ -54,20 +67,92 @@ export default function PipDifferenceCalculator() {
       direction: "up" | "down" | "none";
       timestamp: Date;
       isFavorite?: boolean;
+      pipDecimalPlaces: number;
     }>
   >([]);
+
+  // State for expandable history
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+
+  // Load saved preferences
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        // Load currency pair
+        const savedCurrencyPair = await AsyncStorage.getItem(CURRENCY_PAIR_KEY);
+        if (savedCurrencyPair) {
+          setCurrencyPair(savedCurrencyPair);
+        }
+
+        // Load price A
+        const savedPriceA = await AsyncStorage.getItem(PRICE_A_KEY);
+        if (savedPriceA) {
+          setPriceA(savedPriceA);
+        }
+
+        // Load price B
+        const savedPriceB = await AsyncStorage.getItem(PRICE_B_KEY);
+        if (savedPriceB) {
+          setPriceB(savedPriceB);
+        }
+
+        // Load pip decimal places
+        const savedPipDecimalPlaces = await AsyncStorage.getItem(
+          PIP_DECIMAL_PLACES_KEY
+        );
+        if (savedPipDecimalPlaces) {
+          setPipDecimalPlaces(parseInt(savedPipDecimalPlaces));
+        }
+
+        // Load advanced options state
+        const savedAdvancedOptions = await AsyncStorage.getItem(
+          ADVANCED_OPTIONS_KEY
+        );
+        if (savedAdvancedOptions) {
+          setShowAdvancedOptions(savedAdvancedOptions === "true");
+        }
+      } catch (error) {
+        console.error("Error loading preferences:", error);
+      }
+    };
+
+    loadPreferences();
+  }, []);
+
+  // Save preferences when they change
+  useEffect(() => {
+    const savePreferences = async () => {
+      try {
+        await AsyncStorage.setItem(CURRENCY_PAIR_KEY, currencyPair);
+        await AsyncStorage.setItem(PRICE_A_KEY, priceA);
+        await AsyncStorage.setItem(PRICE_B_KEY, priceB);
+        await AsyncStorage.setItem(
+          PIP_DECIMAL_PLACES_KEY,
+          pipDecimalPlaces.toString()
+        );
+        await AsyncStorage.setItem(
+          ADVANCED_OPTIONS_KEY,
+          showAdvancedOptions.toString()
+        );
+      } catch (error) {
+        console.error("Error saving preferences:", error);
+      }
+    };
+
+    savePreferences();
+  }, [currencyPair, priceA, priceB, pipDecimalPlaces, showAdvancedOptions]);
 
   // Calculate results when inputs change
   useEffect(() => {
     calculateResults();
-  }, [currencyPair, priceA, priceB]);
+  }, [currencyPair, priceA, priceB, pipDecimalPlaces]);
 
   const calculateResults = () => {
     const a = parseFloat(priceA) || 0;
     const b = parseFloat(priceB) || 0;
 
     if (a > 0 && b > 0) {
-      const pips = calculatePipDifference(a, b, currencyPair);
+      const pips = calculatePipDifference(a, b, currencyPair, pipDecimalPlaces);
       setPipDifference(pips);
 
       // Determine direction
@@ -79,35 +164,7 @@ export default function PipDifferenceCalculator() {
         setDirection("none");
       }
 
-      // Add to history (only if values are different)
-      if (pips > 0) {
-        const newEntry = {
-          pair: currencyPair,
-          priceA: a.toString(),
-          priceB: b.toString(),
-          pips,
-          direction:
-            a > b
-              ? ("down" as const)
-              : a < b
-              ? ("up" as const)
-              : ("none" as const),
-          timestamp: new Date(),
-          isFavorite: false,
-        };
-
-        // Check if this calculation is already in history
-        const exists = history.some(
-          (item) =>
-            item.pair === newEntry.pair &&
-            item.priceA === newEntry.priceA &&
-            item.priceB === newEntry.priceB
-        );
-
-        if (!exists) {
-          setHistory((prev) => [newEntry, ...prev].slice(0, 10)); // Keep last 10 entries
-        }
-      }
+      // Remove automatic saving to history - we'll use the save button instead
     }
   };
 
@@ -158,6 +215,116 @@ export default function PipDifferenceCalculator() {
     });
   };
 
+  const copyToClipboard = (text: string) => {
+    // In a real app, you would use Clipboard.setString(text)
+    console.log("Copied to clipboard:", text);
+    Alert.alert("Copied", `${text} copied to clipboard`, [{ text: "OK" }], {
+      cancelable: true,
+    });
+  };
+
+  const shareResult = async () => {
+    try {
+      const message = `Forex Pip Difference Calculation
+Currency Pair: ${currencyPair}
+Price A: ${priceA} 
+Price B: ${priceB}
+Pip Difference: ${pipDifference.toFixed(1)} pips
+Direction: ${
+        direction === "up"
+          ? "Increased"
+          : direction === "down"
+          ? "Decreased"
+          : "No Change"
+      }
+`;
+
+      await Share.share({
+        message,
+        title: "Pip Difference Calculation",
+      });
+    } catch (error) {
+      console.error("Error sharing calculation:", error);
+      Alert.alert("Error", "Failed to share calculation");
+    }
+  };
+
+  const saveToHistory = () => {
+    const a = parseFloat(priceA) || 0;
+    const b = parseFloat(priceB) || 0;
+
+    if (a > 0 && b > 0) {
+      const pips = calculatePipDifference(a, b, currencyPair, pipDecimalPlaces);
+
+      if (pips > 0) {
+        const newEntry = {
+          pair: currencyPair,
+          priceA: a.toString(),
+          priceB: b.toString(),
+          pips,
+          pipDecimalPlaces, // Include decimal places in the history entry
+          direction:
+            a > b
+              ? ("down" as const)
+              : a < b
+              ? ("up" as const)
+              : ("none" as const),
+          timestamp: new Date(),
+          isFavorite: false,
+        };
+
+        // Check if this calculation is already in history
+        // Also consider decimal places when checking for duplicates
+        const exists = history.some(
+          (item) =>
+            item.pair === newEntry.pair &&
+            item.priceA === newEntry.priceA &&
+            item.priceB === newEntry.priceB &&
+            item.pipDecimalPlaces === newEntry.pipDecimalPlaces
+        );
+
+        if (!exists) {
+          const newHistory = [newEntry, ...history].slice(0, 10); // Keep last 10 entries
+          setHistory(newHistory);
+
+          // Show success message
+          Alert.alert(
+            "Saved",
+            "Calculation saved to history",
+            [{ text: "OK" }],
+            {
+              cancelable: true,
+            }
+          );
+        } else {
+          // Show already exists message
+          Alert.alert(
+            "Already Saved",
+            "This calculation already exists in your history",
+            [{ text: "OK" }],
+            { cancelable: true }
+          );
+        }
+      } else {
+        // Show invalid pip difference message
+        Alert.alert(
+          "Invalid Calculation",
+          "Cannot save calculations with zero pip difference",
+          [{ text: "OK" }],
+          { cancelable: true }
+        );
+      }
+    } else {
+      // Show invalid input message
+      Alert.alert(
+        "Invalid Input",
+        "Please enter valid price values before saving",
+        [{ text: "OK" }],
+        { cancelable: true }
+      );
+    }
+  };
+
   const toggleFavorite = (index: number) => {
     setHistory((prev) => {
       const newHistory = [...prev];
@@ -169,11 +336,142 @@ export default function PipDifferenceCalculator() {
     });
   };
 
+  // Get the denominator suffix (st, nd, rd, th)
+  const getDenominator = (places: number): string => {
+    if (places === 0) return "";
+    if (places === 1) return "st";
+    if (places === 2) return "nd";
+    if (places === 3) return "rd";
+    return "th";
+  };
+
+  // Generate example for the current decimal place selection
+  const getDecimalPlaceExample = (places: number): string => {
+    if (places === 0) return "1";
+    return `0.${"0".repeat(places - 1)}1`;
+  };
+
+  // Array of available decimal places
+  const decimalPlaceOptions = Array.from({ length: 11 }, (_, i) => i); // 0 to 10
+
+  // Render each decimal place option
+  const renderDecimalPlaceOption = ({ item }: { item: number }) => (
+    <TouchableOpacity
+      key={item}
+      style={[
+        styles.decimalPlaceOption,
+        {
+          backgroundColor:
+            pipDecimalPlaces === item
+              ? "#6200ee"
+              : isDark
+              ? "#2A2A2A"
+              : "#f5f5f5",
+          borderColor: isDark ? "#444" : "#ddd",
+        },
+      ]}
+      onPress={() => setPipDecimalPlaces(item)}
+    >
+      <Text
+        style={{
+          fontSize: 16,
+          fontWeight: "500",
+          color: pipDecimalPlaces === item ? "white" : isDark ? "#fff" : "#000",
+        }}
+      >
+        {item}
+        {getDenominator(item)}
+      </Text>
+    </TouchableOpacity>
+  );
+
   // Filter history based on selected filter
   const filteredHistory =
     historyFilter === "favorites"
       ? history.filter((item) => item.isFavorite)
       : history;
+
+  // Format price with appropriate decimal places based on currency pair
+  const formatPrice = (price: string | number): string => {
+    const numPrice = typeof price === "string" ? parseFloat(price) : price;
+    if (isNaN(numPrice)) return "0";
+
+    // JPY pairs typically have 2-3 decimal places, others have 4-5
+    const decimalPlaces = currencyPair.includes("JPY") ? 3 : 5;
+
+    // Format with commas for thousands and appropriate decimal places
+    return numPrice.toLocaleString(undefined, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: decimalPlaces,
+    });
+  };
+
+  // Format pip value with appropriate decimal places
+  const formatPipValue = (pips: number): string => {
+    if (pips === 0) return "0";
+
+    // Small values get more precision, larger values less
+    let decimalPlaces = 1;
+    if (pips < 10) decimalPlaces = 1;
+    if (pips >= 1000) decimalPlaces = 0;
+
+    return pips.toLocaleString(undefined, {
+      minimumFractionDigits: decimalPlaces,
+      maximumFractionDigits: decimalPlaces,
+    });
+  };
+
+  // Get a descriptive text for the price movement
+  const getMovementDescription = (): string => {
+    const a = parseFloat(priceA) || 0;
+    const b = parseFloat(priceB) || 0;
+
+    if (a === 0 || b === 0) return "Enter valid prices";
+    if (a === b) return "No price change";
+
+    const percentChange = ((b - a) / a) * 100;
+    const absPercentChange = Math.abs(percentChange);
+    let description = "";
+
+    if (b > a) {
+      description = `Price increased by ${absPercentChange.toFixed(2)}%`;
+    } else {
+      description = `Price decreased by ${absPercentChange.toFixed(2)}%`;
+    }
+
+    return description;
+  };
+
+  // Get the history to display based on expansion state
+  const displayedHistory = isHistoryExpanded
+    ? filteredHistory
+    : filteredHistory.slice(0, 3); // Show only first 3 items when collapsed
+
+  const shareHistoryItem = async (item: any) => {
+    try {
+      const message = `Forex Pip Difference Calculation
+Currency Pair: ${item.pair}
+Price A: ${item.priceA} 
+Price B: ${item.priceB}
+Pip Difference: ${formatPipValue(item.pips)} pips
+Direction: ${
+        item.direction === "up"
+          ? "Increased"
+          : item.direction === "down"
+          ? "Decreased"
+          : "No Change"
+      }
+`;
+
+      await Share.share({
+        message,
+        title: "Pip Difference Calculation",
+      });
+    } catch (error) {
+      console.error("Error sharing calculation:", error);
+      Alert.alert("Error", "Failed to share calculation");
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -235,16 +533,90 @@ export default function PipDifferenceCalculator() {
             />
           </View>
 
-          <View style={styles.chipContainer}>
-            <Chip
-              icon="information"
-              mode="outlined"
-              style={{ borderColor: isDark ? "#444" : "#ddd" }}
-              textStyle={{ color: isDark ? "#fff" : "#000" }}
+          {/* Advanced Options Button */}
+          <TouchableOpacity
+            style={styles.advancedOptionsButton}
+            onPress={() => setShowAdvancedOptions(!showAdvancedOptions)}
+          >
+            <Text
+              style={{
+                fontSize: 14,
+                marginRight: 5,
+                fontWeight: "500",
+                color: "#6200ee",
+              }}
             >
-              {currencyPair.includes("JPY") ? "1 pip = 0.01" : "1 pip = 0.0001"}
-            </Chip>
-          </View>
+              {showAdvancedOptions
+                ? "Hide Advanced Options"
+                : "Show Advanced Options"}
+            </Text>
+            <MaterialIcons
+              name={showAdvancedOptions ? "expand-less" : "expand-more"}
+              size={20}
+              color="#6200ee"
+            />
+          </TouchableOpacity>
+
+          {/* Advanced Options Section */}
+          {showAdvancedOptions && (
+            <View
+              style={[
+                styles.advancedOptionsContainer,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.05)"
+                    : "rgba(0,0,0,0.03)",
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  fontSize: 14,
+                  marginBottom: 8,
+                  color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
+                }}
+              >
+                Pip Decimal Places:
+              </Text>
+
+              <FlatList
+                data={decimalPlaceOptions}
+                renderItem={renderDecimalPlaceOption}
+                keyExtractor={(item) => item.toString()}
+                horizontal
+                showsHorizontalScrollIndicator={true}
+                contentContainerStyle={styles.decimalPlacesScrollContainer}
+              />
+
+              <View
+                style={[
+                  styles.decimalPlaceExampleContainer,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(0,0,0,0.02)",
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontStyle: "italic",
+                    textAlign: "center",
+                    color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
+                  }}
+                >
+                  {pipDecimalPlaces === 0
+                    ? "1 pip = 1 (whole unit)"
+                    : `1 pip = ${getDecimalPlaceExample(
+                        pipDecimalPlaces
+                      )} (${pipDecimalPlaces}${getDenominator(
+                        pipDecimalPlaces
+                      )} decimal place)`}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         <Divider
@@ -266,52 +638,132 @@ export default function PipDifferenceCalculator() {
             >
               Result
             </Text>
-            <IconButton
-              icon="refresh"
-              size={20}
-              onPress={calculateResults}
-              iconColor={isDark ? "#fff" : "#000"}
-            />
+            <View style={styles.resultActions}>
+              <IconButton
+                icon="refresh"
+                size={20}
+                onPress={calculateResults}
+                iconColor={isDark ? "#fff" : "#000"}
+              />
+              <IconButton
+                icon="share-variant"
+                size={20}
+                onPress={shareResult}
+                iconColor={isDark ? "#fff" : "#000"}
+              />
+              <IconButton
+                icon="content-save"
+                size={20}
+                onPress={saveToHistory}
+                iconColor={isDark ? "#fff" : "#000"}
+              />
+            </View>
           </View>
 
-          <View style={styles.mainResult}>
-            <Ionicons
-              name={getDirectionIcon(direction)}
-              size={24}
-              color={getDirectionColor(direction)}
-              style={styles.directionIcon}
-            />
+          <View
+            style={[
+              styles.pipResultContainer,
+              {
+                backgroundColor: isDark
+                  ? "rgba(255, 255, 255, 0.07)"
+                  : "rgba(0, 0, 0, 0.05)",
+                borderWidth: 0.5,
+                borderColor: isDark
+                  ? "rgba(255, 255, 255, 0.1)"
+                  : "rgba(0, 0, 0, 0.1)",
+                borderRadius: 8,
+                marginTop: 0,
+              },
+            ]}
+          >
+            <View style={styles.resultLabelRow}>
+              <Text
+                style={{
+                  color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
+                }}
+              >
+                Pip Difference
+              </Text>
+              <Chip
+                style={{ height: 26 }}
+                textStyle={{ fontSize: 12, paddingTop: -5 }}
+              >
+                {pipDecimalPlaces} decimal{pipDecimalPlaces !== 1 ? "s" : ""}
+              </Chip>
+            </View>
+
+            <View style={styles.pipValueContainer}>
+              <View style={styles.directionIconWrapper}>
+                <Ionicons
+                  name={getDirectionIcon(direction)}
+                  size={24}
+                  color={getDirectionColor(direction)}
+                />
+              </View>
+              <Text
+                variant="headlineMedium"
+                style={{
+                  color: getDirectionColor(direction),
+                  fontWeight: "bold",
+                }}
+              >
+                {formatPipValue(pipDifference)}
+              </Text>
+              <Text
+                variant="bodyLarge"
+                style={{ color: isDark ? "#aaa" : "#666" }}
+              >
+                pips
+              </Text>
+              <TouchableOpacity
+                onPress={() => copyToClipboard(formatPipValue(pipDifference))}
+                style={{ marginLeft: 8 }}
+              >
+                <Ionicons
+                  name="copy-outline"
+                  size={16}
+                  color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)"}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.pipScaleContainer}>
+              <View style={styles.pipScaleTrack}>
+                <View
+                  style={[
+                    styles.pipScaleFill,
+                    {
+                      width: `${Math.min(100, (pipDifference / 100) * 100)}%`,
+                      backgroundColor: getDirectionColor(direction),
+                    },
+                  ]}
+                />
+              </View>
+            </View>
             <Text
-              variant="displaySmall"
               style={{
                 color: getDirectionColor(direction),
-                fontWeight: "bold",
+                textAlign: "center",
+                marginTop: 18,
+                marginBottom: 6,
+                fontStyle: "italic",
+                fontSize: 14,
               }}
             >
-              {pipDifference.toFixed(1)}
-            </Text>
-            <Text
-              variant="titleMedium"
-              style={{ color: isDark ? "#aaa" : "#666" }}
-            >
-              pips
+              {getMovementDescription()}
             </Text>
           </View>
 
-          <Text
-            variant="bodySmall"
-            style={{
-              color: isDark ? "#aaa" : "#666",
-              textAlign: "center",
-              marginTop: 8,
-            }}
-          >
-            {direction === "up"
-              ? "Price increased"
-              : direction === "down"
-              ? "Price decreased"
-              : "No change"}
-          </Text>
+          <View style={styles.infoContainer}>
+            <Chip
+              icon="information"
+              mode="outlined"
+              style={{ borderColor: isDark ? "#444" : "#ddd" }}
+              textStyle={{ color: isDark ? "#fff" : "#000" }}
+            >
+              Tap pip value to copy to clipboard
+            </Chip>
+          </View>
         </View>
 
         <Divider
@@ -382,6 +834,7 @@ export default function PipDifferenceCalculator() {
                 onPress={clearHistory}
                 compact
                 textColor="#6200ee"
+                disabled={filteredHistory.length === 0}
               >
                 Clear
               </Button>
@@ -389,14 +842,14 @@ export default function PipDifferenceCalculator() {
           </View>
 
           {filteredHistory.length > 0 ? (
-            <ScrollView style={styles.historyList}>
-              {filteredHistory.map((item, index) => {
+            <View style={{ marginBottom: 16 }}>
+              {displayedHistory.map((item, index) => {
                 // Check if this is the first item or if the date is different from the previous item
                 const isNewDay =
                   index === 0 ||
                   new Date(item.timestamp).toDateString() !==
                     new Date(
-                      filteredHistory[index - 1].timestamp
+                      displayedHistory[index - 1].timestamp
                     ).toDateString();
 
                 return (
@@ -404,11 +857,16 @@ export default function PipDifferenceCalculator() {
                     {isNewDay && (
                       <Text
                         style={[
-                          styles.historyDateHeader,
                           {
+                            fontSize: 12,
+                            marginTop: 8,
+                            marginBottom: 4,
+                            paddingHorizontal: 16,
+                            fontWeight: "500",
                             color: isDark
                               ? "rgba(255,255,255,0.7)"
                               : "rgba(0,0,0,0.6)",
+                            paddingBottom: 4,
                           },
                         ]}
                       >
@@ -417,9 +875,8 @@ export default function PipDifferenceCalculator() {
                     )}
                     <Surface
                       style={[
-                        styles.historyItem,
-                        index === 0 && styles.historyItemRecent,
                         {
+                          borderBottomWidth: 1,
                           backgroundColor:
                             index === 0
                               ? isDark
@@ -435,11 +892,21 @@ export default function PipDifferenceCalculator() {
                           marginHorizontal: 0,
                           marginBottom: 6,
                         },
+                        index === 0 && {
+                          borderLeftWidth: 4,
+                          borderLeftColor: "#6200ee",
+                        },
                       ]}
                       elevation={0}
                     >
                       <TouchableOpacity
-                        style={styles.historyItemTouchable}
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                        }}
                         onPress={() => {
                           setCurrencyPair(item.pair);
                           setPriceA(item.priceA);
@@ -447,13 +914,21 @@ export default function PipDifferenceCalculator() {
                         }}
                         activeOpacity={0.7}
                       >
-                        <View style={styles.historyItemLeft}>
-                          <View style={styles.historyItemTopRow}>
+                        <View style={{ flex: 1 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                            }}
+                          >
                             <Text
                               variant="bodyMedium"
                               style={[
-                                styles.historyItemPair,
-                                { color: isDark ? "#fff" : "#000" },
+                                {
+                                  fontWeight: "600",
+                                  marginBottom: 2,
+                                  color: isDark ? "#fff" : "#000",
+                                },
                               ]}
                             >
                               {item.pair}
@@ -468,7 +943,14 @@ export default function PipDifferenceCalculator() {
                             )}
                           </View>
 
-                          <View style={styles.historyItemDetails}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              width: "70%",
+                            }}
+                          >
                             <Text
                               variant="bodySmall"
                               style={{
@@ -477,7 +959,8 @@ export default function PipDifferenceCalculator() {
                                   : "rgba(0,0,0,0.5)",
                               }}
                             >
-                              {item.priceA} → {item.priceB}
+                              {formatPrice(item.priceA)} →{" "}
+                              {formatPrice(item.priceB)}
                             </Text>
                             <Text
                               variant="bodySmall"
@@ -492,12 +975,21 @@ export default function PipDifferenceCalculator() {
                           </View>
                         </View>
 
-                        <View style={styles.historyItemRight}>
-                          <View style={styles.historyItemActions}>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "flex-end",
+                              marginBottom: 2,
+                            }}
+                          >
                             <IconButton
                               icon={item.isFavorite ? "star" : "star-outline"}
                               size={18}
-                              onPress={() => toggleFavorite(index)}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                toggleFavorite(filteredHistory.indexOf(item));
+                              }}
                               iconColor={
                                 item.isFavorite
                                   ? "#6200ee"
@@ -505,22 +997,62 @@ export default function PipDifferenceCalculator() {
                                   ? "rgba(255,255,255,0.5)"
                                   : "rgba(0,0,0,0.4)"
                               }
-                              style={styles.actionButton}
+                              style={{
+                                margin: 0,
+                                padding: 0,
+                                width: 24,
+                                height: 24,
+                              }}
                             />
                             <IconButton
-                              icon="trash-can-outline"
+                              icon="share-variant"
                               size={18}
-                              onPress={() => deleteHistoryItem(index)}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                shareHistoryItem(item);
+                              }}
                               iconColor={
                                 isDark
                                   ? "rgba(255,255,255,0.5)"
                                   : "rgba(0,0,0,0.4)"
                               }
-                              style={styles.actionButton}
+                              style={{
+                                margin: 0,
+                                padding: 0,
+                                width: 24,
+                                height: 24,
+                              }}
+                            />
+                            <IconButton
+                              icon="trash-can-outline"
+                              size={18}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                deleteHistoryItem(
+                                  filteredHistory.indexOf(item)
+                                );
+                              }}
+                              iconColor={
+                                isDark
+                                  ? "rgba(255,255,255,0.5)"
+                                  : "rgba(0,0,0,0.4)"
+                              }
+                              style={{
+                                margin: 0,
+                                padding: 0,
+                                width: 24,
+                                height: 24,
+                              }}
                             />
                           </View>
 
-                          <View style={styles.pipDisplay}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
                             <Ionicons
                               name={getDirectionIcon(item.direction)}
                               size={16}
@@ -533,7 +1065,7 @@ export default function PipDifferenceCalculator() {
                                 fontWeight: "bold",
                               }}
                             >
-                              {item.pips.toFixed(1)} pips
+                              {formatPipValue(item.pips)} pips
                             </Text>
                           </View>
                         </View>
@@ -542,7 +1074,45 @@ export default function PipDifferenceCalculator() {
                   </React.Fragment>
                 );
               })}
-            </ScrollView>
+
+              {filteredHistory.length > 3 && (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginTop: 8,
+                    marginBottom: 8,
+                    paddingVertical: 8,
+                    backgroundColor: "rgba(98, 0, 238, 0.05)",
+                    borderRadius: 8,
+                    marginHorizontal: 16,
+                    borderWidth: 1,
+                    borderColor: "rgba(98, 0, 238, 0.2)",
+                  }}
+                  onPress={() => setIsHistoryExpanded(!isHistoryExpanded)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={{
+                      color: "#6200ee",
+                      fontWeight: "600",
+                      textAlign: "center",
+                    }}
+                  >
+                    {isHistoryExpanded
+                      ? `Show Less (${filteredHistory.length} items total)`
+                      : `Show ${filteredHistory.length - 3} More Items...`}
+                  </Text>
+                  <Ionicons
+                    name={isHistoryExpanded ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color="#6200ee"
+                    style={{ marginLeft: 4 }}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
           ) : (
             <View style={styles.emptyHistory}>
               <Ionicons
@@ -614,6 +1184,78 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+  resultActions: {
+    flexDirection: "row",
+  },
+  resultCardContainer: {
+    padding: 16,
+    marginBottom: 16,
+  },
+  priceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    marginBottom: 4,
+  },
+  priceDetail: {
+    alignItems: "center",
+    width: "40%",
+  },
+  directionIndicator: {
+    position: "relative",
+    width: 50,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trendLine: {
+    position: "absolute",
+    height: 3,
+    width: 40,
+    borderRadius: 1.5,
+  },
+  pipResultContainer: {
+    padding: 16,
+    alignItems: "center",
+  },
+  resultLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    marginBottom: 8,
+  },
+  pipValueContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  directionIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pipScaleContainer: {
+    width: "100%",
+    marginTop: 4,
+  },
+  pipScaleTrack: {
+    height: 6,
+    backgroundColor: "rgba(0,0,0,0.1)",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  pipScaleFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
   mainResult: {
     flexDirection: "row",
     alignItems: "center",
@@ -622,6 +1264,10 @@ const styles = StyleSheet.create({
   },
   directionIcon: {
     marginRight: 8,
+  },
+  infoContainer: {
+    alignItems: "center",
+    marginTop: 8,
   },
   historyContainer: {
     marginTop: 8,
@@ -637,8 +1283,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  historyList: {
-    maxHeight: 350,
+  historyListContainer: {
+    marginBottom: 16,
   },
   historyDateHeader: {
     fontSize: 12,
@@ -709,5 +1355,48 @@ const styles = StyleSheet.create({
   },
   emptyHistoryButton: {
     marginTop: 16,
+  },
+  advancedOptionsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  advancedOptionsContainer: {
+    marginBottom: 15,
+    padding: 10,
+    borderRadius: 8,
+  },
+  decimalPlacesScrollContainer: {
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+  },
+  decimalPlaceOption: {
+    width: 45,
+    height: 38,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 8,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  decimalPlaceExampleContainer: {
+    marginTop: 10,
+    padding: 8,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  showMoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    marginBottom: 8,
+    paddingVertical: 8,
+    backgroundColor: "rgba(98, 0, 238, 0.05)",
+    borderRadius: 8,
+    marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "rgba(98, 0, 238, 0.2)",
   },
 });

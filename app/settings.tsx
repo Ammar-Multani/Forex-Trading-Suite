@@ -174,19 +174,6 @@ export default function SettingsScreen() {
             { backgroundColor: isDark ? "#1E1E1E" : "#fff" },
           ]}
         >
-          {renderSettingItem("trending-up-outline", "Exchange Rates", () =>
-            handleNavigation("/exchange-rates")
-          )}
-          <Divider
-            style={[
-              styles.divider,
-              {
-                backgroundColor: isDark
-                  ? "rgba(255, 255, 255, 0.1)"
-                  : "rgba(0, 0, 0, 0.1)",
-              },
-            ]}
-          />
           {renderSettingItem("book-outline", "Manual", () =>
             handleNavigation("/manual")
           )}
@@ -226,7 +213,7 @@ export default function SettingsScreen() {
           ]}
         >
           {renderSettingItem("bug-outline", "Report a bug", () =>
-            handleNavigation("/forex-test")
+            handleNavigation("/report-bug")
           )}
         </View>
 
