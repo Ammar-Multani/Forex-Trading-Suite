@@ -113,6 +113,9 @@ export default function PivotPointsCalculator() {
   });
   const animatedValue = useRef(new Animated.Value(0)).current;
 
+  // State for notification
+  const [showNotification, setShowNotification] = useState(false);
+
   // Load history from storage
   useEffect(() => {
     loadHistory();
@@ -180,51 +183,105 @@ export default function PivotPointsCalculator() {
         return;
       }
 
-      // Calculate base pivot points for all methods
-      const result = calculatePivotPoints(high, low, close, method, open);
+      // Calculate range - used in multiple methods
+      const range = high - low;
 
-      // For Camarilla method, we'll calculate R4 and S4 here since they might not be included in the utility function
-      if (method === "camarilla") {
-        const range = high - low;
-        // Camarilla R4 and S4 calculation formula - correct formula
-        const r4 = close + (range * 1.5) / 2;
-        const s4 = close - (range * 1.5) / 2;
-
-        // Add R4 to the end for Camarilla to maintain R1, R2, R3, R4 order
-        setResistance([...result.resistance, r4]);
-
-        // Add S4 to the end since we're displaying in ascending order
-        setSupport([...result.support, s4]);
-
-        // Set pivot point
-        setPivot(result.pivot);
+      // Calculate manually for each method to ensure correct values
+      if (method === "standard") {
+        // Standard pivot points calculation
+        const pivot = (high + low + close) / 3;
+        
+        // Calculate resistance levels for Standard method
+        const r1 = 2 * pivot - low;         // R1 = 2 * PP - L
+        const r2 = pivot + range;           // R2 = PP + (H - L)
+        // Modified R3 formula to match reference app precisely
+        const r3 = high + 2 * (pivot - low); // R3 = H + 2(PP - L)
+        
+        // Calculate support levels for Standard method
+        const s1 = 2 * pivot - high;        // S1 = 2 * PP - H
+        const s2 = pivot - range;           // S2 = PP - (H - L)
+        // Modified S3 formula to match reference app precisely
+        const s3 = low - 2 * (high - pivot); // S3 = L - 2(H - PP)
+        
+        setPivot(pivot);
+        setResistance([r1, r2, r3]);
+        setSupport([s1, s2, s3]);
+      } 
+      else if (method === "woodie") {
+        // Woodie pivot points calculation
+        const pivot = (high + low + 2 * close) / 4;
+        
+        // Calculate resistance levels for Woodie method
+        const r1 = 2 * pivot - low;         // R1 = 2 * PP - L
+        const r2 = pivot + range;           // R2 = PP + (H - L)
+        // Note: In some implementations, Woodie doesn't use R3, but we'll include it
+        const r3 = pivot + 2 * range;       // R3 = PP + 2 * (H - L)
+        
+        // Calculate support levels for Woodie method
+        const s1 = 2 * pivot - high;        // S1 = 2 * PP - H
+        const s2 = pivot - range;           // S2 = PP - (H - L)
+        const s3 = pivot - 2 * range;       // S3 = PP - 2 * (H - L)
+        
+        setPivot(pivot);
+        setResistance([r1, r2, r3]);
+        setSupport([s1, s2, s3]);
       }
-      // For DeMark method, recalculate to ensure correct values
+      else if (method === "camarilla") {
+        // Camarilla pivot points calculation
+        const pivot = (high + low + close) / 3;
+        
+        // Calculate resistance levels for Camarilla method
+        const r1 = close + (range * 1.1) / 12;   // R1 = C + ((H - L) * 1.1) / 12
+        const r2 = close + (range * 1.1) / 6;    // R2 = C + ((H - L) * 1.1) / 6
+        const r3 = close + (range * 1.1) / 4;    // R3 = C + ((H - L) * 1.1) / 4
+        const r4 = close + (range * 1.5) / 2;    // R4 = C + ((H - L) * 1.5) / 2
+        
+        // Calculate support levels for Camarilla method
+        const s1 = close - (range * 1.1) / 12;   // S1 = C - ((H - L) * 1.1) / 12
+        const s2 = close - (range * 1.1) / 6;    // S2 = C - ((H - L) * 1.1) / 6
+        const s3 = close - (range * 1.1) / 4;    // S3 = C - ((H - L) * 1.1) / 4
+        const s4 = close - (range * 1.5) / 2;    // S4 = C - ((H - L) * 1.5) / 2
+        
+        setPivot(pivot);
+        setResistance([r1, r2, r3, r4]);
+        setSupport([s1, s2, s3, s4]);
+      }
       else if (method === "demark") {
-        // Correct DeMark formula based on the example
+        // DeMark pivot points calculation
         let x;
         if (close < open) {
           x = high + low * 2 + close;
         } else if (close > open) {
           x = high * 2 + low + close;
         } else {
-          // close == open
           x = high + low + close * 2;
         }
-
-        const pivotValue = x / 4;
-
-        // Correct R1 and S1 formulas for DeMark
-        const r1 = x / 2 - low;
-        const s1 = x / 2 - high;
-
-        setPivot(pivotValue);
-        setResistance([r1, r1, r1]); // DeMark only has one level, duplicate for UI
-        setSupport([s1, s1, s1]); // DeMark only has one level, duplicate for UI
-      } else {
-        setPivot(result.pivot);
-        setResistance(result.resistance);
-        setSupport(result.support);
+        
+        const pivot = x / 4;
+        const r1 = x / 2 - low;            // R1 = X/2 - L
+        const s1 = x / 2 - high;           // S1 = X/2 - H
+        
+        setPivot(pivot);
+        setResistance([r1, r1, r1]);      // DeMark only has R1, duplicate for UI
+        setSupport([s1, s1, s1]);         // DeMark only has S1, duplicate for UI
+      }
+      else if (method === "fibonacci") {
+        // Fibonacci pivot points calculation
+        const pivot = (high + low + close) / 3;
+        
+        // Calculate resistance levels for Fibonacci method
+        const r1 = pivot + 0.382 * range;  // R1 = PP + 0.382 * (H - L)
+        const r2 = pivot + 0.618 * range;  // R2 = PP + 0.618 * (H - L)
+        const r3 = pivot + 1.000 * range;  // R3 = PP + 1.000 * (H - L)
+        
+        // Calculate support levels for Fibonacci method
+        const s1 = pivot - 0.382 * range;  // S1 = PP - 0.382 * (H - L)
+        const s2 = pivot - 0.618 * range;  // S2 = PP - 0.618 * (H - L)
+        const s3 = pivot - 1.000 * range;  // S3 = PP - 1.000 * (H - L)
+        
+        setPivot(pivot);
+        setResistance([r1, r2, r3]);
+        setSupport([s1, s2, s3]);
       }
     } catch (error) {
       console.error("Error calculating pivot points:", error);
@@ -1155,14 +1212,15 @@ export default function PivotPointsCalculator() {
                                   </View>
                                 )
                             )
-                          : // For other methods, use standard display
-                            resistance.map((level, index) => {
+                          : // For other methods (standard, woodie, fibonacci), show levels in correct order
+                            [...resistance].reverse().map((level, index) => {
+                              const rNumber = resistance.length - index; // Convert to R3, R2, R1
                               return (
                                 level !== 0 &&
                                 // Hide R3 when woodie method is selected
-                                !(method === "woodie" && index === 0) && (
+                                !(method === "woodie" && rNumber === 3) && (
                                   <View
-                                    key={`r${resistance.length - index}`}
+                                    key={`r${rNumber}`}
                                     style={[
                                       styles.levelRow,
                                       {
@@ -1180,7 +1238,7 @@ export default function PivotPointsCalculator() {
                                         width: 40,
                                       }}
                                     >
-                                      R{resistance.length - index}
+                                      R{rNumber}
                                     </Text>
                                     <View style={styles.levelValueContainer}>
                                       <Text
@@ -1290,19 +1348,14 @@ export default function PivotPointsCalculator() {
                                   </View>
                                 )
                             )
-                          : support.map((level, index) => {
-                              // For standard support level display
+                          : method === "camarilla"
+                          ? // For Camarilla, show S1 through S4 in ascending order
+                            support.map((level, index) => {
+                              const sNumber = index + 1; // S1, S2, S3, S4
                               return (
-                                level !== 0 &&
-                                // Hide S3 when woodie method is selected
-                                !(method === "woodie" && index === 2) && (
+                                level !== 0 && (
                                   <View
-                                    key={`s${
-                                      method === "camarilla" &&
-                                      index === support.length - 1
-                                        ? "4"
-                                        : index + 1
-                                    }`}
+                                    key={`s${sNumber}`}
                                     style={[
                                       styles.levelRow,
                                       {
@@ -1320,11 +1373,61 @@ export default function PivotPointsCalculator() {
                                         width: 40,
                                       }}
                                     >
-                                      S
-                                      {method === "camarilla" &&
-                                      index === support.length - 1
-                                        ? "4"
-                                        : index + 1}
+                                      S{sNumber}
+                                    </Text>
+                                    <View style={styles.levelValueContainer}>
+                                      <Text
+                                        variant="bodyLarge"
+                                        style={{
+                                          color: "#4CAF50",
+                                          fontWeight: "bold",
+                                        }}
+                                      >
+                                        {formatPrice(level)}
+                                      </Text>
+                                      <TouchableOpacity
+                                        onPress={() =>
+                                          copyToClipboard(level.toString())
+                                        }
+                                      >
+                                        <Ionicons
+                                          name="copy-outline"
+                                          size={16}
+                                          color={isDark ? "#aaa" : "#666"}
+                                        />
+                                      </TouchableOpacity>
+                                    </View>
+                                  </View>
+                                )
+                              );
+                            })
+                          : // For other methods (standard, woodie, fibonacci), show in ascending order
+                            support.map((level, index) => {
+                              const sNumber = index + 1; // S1, S2, S3
+                              return (
+                                level !== 0 &&
+                                // Hide S3 when woodie method is selected
+                                !(method === "woodie" && sNumber === 3) && (
+                                  <View
+                                    key={`s${sNumber}`}
+                                    style={[
+                                      styles.levelRow,
+                                      {
+                                        borderBottomColor: isDark
+                                          ? "rgba(255, 255, 255, 0.05)"
+                                          : "rgba(0, 0, 0, 0.05)",
+                                      },
+                                    ]}
+                                  >
+                                    <Text
+                                      variant="bodyMedium"
+                                      style={{
+                                        color: isDark ? "#fff" : "#000",
+                                        fontWeight: "bold",
+                                        width: 40,
+                                      }}
+                                    >
+                                      S{sNumber}
                                     </Text>
                                     <View style={styles.levelValueContainer}>
                                       <Text
@@ -2195,5 +2298,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFEBEB",
     borderWidth: 1,
     borderColor: "#F44336",
+  },
+  notificationContainer: {
+    position: "absolute",
+    bottom: 16,
+    left: 16,
+    right: 16,
+    zIndex: 1000,
+  },
+  notification: {
+    backgroundColor: "#6200ee",
+    padding: 16,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  notificationText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  notificationIcon: {
+    marginLeft: 8,
   },
 });
