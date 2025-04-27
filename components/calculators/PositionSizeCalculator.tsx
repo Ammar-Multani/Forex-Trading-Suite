@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { View, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
 import {
   TextInput,
   Divider,
@@ -7,8 +7,13 @@ import {
   Switch,
   Text,
   Surface,
+  TouchableRipple,
+  Portal,
+  Modal,
+  Button,
+  List,
 } from "react-native-paper";
-import { formatCurrency } from "../../utils/calculators";
+import { formatCurrency, getPipDecimalPlaces, calculatePipValueInQuoteCurrency, calculatePipValueInAccountCurrency } from "../../utils/calculators";
 import CalculatorCard from "../ui/CalculatorCard";
 import ResultDisplay from "../ui/ResultDisplay";
 import CurrencyPairSelector from "../ui/CurrencyPairSelector";
@@ -22,6 +27,7 @@ import {
 } from "../../constants/currencies";
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 
 // Lot size constants
 const STANDARD_LOT = 100000;
@@ -84,6 +90,10 @@ export default function PositionSizeCalculator() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [calculationError, setCalculationError] = useState<string | null>(null);
   const [exchangeRate, setExchangeRate] = useState(1);
+
+  // New state for modal visibility
+  const [riskTypeModalVisible, setRiskTypeModalVisible] = useState(false);
+  const [stopLossTypeModalVisible, setStopLossTypeModalVisible] = useState(false);
 
   // Save calculator values to AsyncStorage
   const saveCalculatorValues = useCallback(async () => {
@@ -283,17 +293,18 @@ export default function PositionSizeCalculator() {
 
       const [baseCurrency, quoteCurrency] = currencyPair.split("/");
 
+      // Get currency pair data
+      const pairData = getCurrencyPairByName(currencyPair);
+      if (!pairData) {
+        throw new Error(`Invalid currency pair: ${currencyPair}`);
+      }
+
       // If quote currency is the same as account currency, no need for conversion
       if (quoteCurrency === accountCurrency) {
         return 1;
       }
 
-      // If base currency is the account currency, use the entry price as the rate
-      if (baseCurrency === accountCurrency) {
-        return 1 / parseFloat(entryPrice);
-      }
-
-      // For cross currency cases, get the exchange rate from API
+      // Get the exchange rate from API
       const rate = await getExchangeRate(quoteCurrency, accountCurrency);
       return rate;
     } catch (error) {
@@ -304,7 +315,7 @@ export default function PositionSizeCalculator() {
         throw new Error("Could not fetch exchange rate");
       }
     }
-  }, [currencyPair, accountCurrency, entryPrice, getExchangeRate]);
+  }, [currencyPair, accountCurrency, getExchangeRate]);
 
   const calculateResults = useCallback(async () => {
     try {
@@ -347,7 +358,10 @@ export default function PositionSizeCalculator() {
           throw new Error(`Invalid currency pair: ${currencyPair}`);
         }
 
-        // Calculate pip value for 1 standard lot
+        // Get pip decimal places for this currency pair
+        const pipDecimalPlacesForPair = getPipDecimalPlaces(pairData.quote);
+
+        // Calculate pip size
         const pipSize = Math.pow(10, -pipDecimalPlaces);
 
         // Get the exchange rate for conversion
@@ -360,28 +374,33 @@ export default function PositionSizeCalculator() {
           throw new Error("Could not get current exchange rates");
         }
 
+        // Calculate position size in units based on the risk/stop loss method
+        const lotSize = STANDARD_LOT; // Standard lot size for calculation
+
         // Calculate pip value in quote currency
-        const pipValueInQuote = STANDARD_LOT * pipSize;
+        const pipValueInQuote = calculatePipValueInQuoteCurrency(
+          pairData,
+          lotSize,
+          1, // for single pip
+          pipDecimalPlaces
+        );
 
         // Convert to account currency
-        const pipValueInAccount = pipValueInQuote * rate;
+        const pipValueInAccount = calculatePipValueInAccountCurrency(
+          pipValueInQuote,
+          pairData.quote,
+          accountCurrency,
+          rate
+        );
 
-        // Calculate position size in units (matching reference app)
-        // Formula: Risk Amount / (Stop Loss in pips * Pip Value per unit)
+        // Calculate position size in units
         const pipValueForOneUnit = pipValueInAccount / STANDARD_LOT;
         const positionSizeInUnits = riskAmt / (stopLoss * pipValueForOneUnit);
 
         // Calculate total position size in lots
         const totalLots = positionSizeInUnits / STANDARD_LOT;
 
-        // Calculate lot distribution based on total units
-        // For GBP/USD with $1000 account and 5% risk (50$) and 22 pips stop loss
-        // We should get approximately:
-        // - Standard lots: 0.227
-        // - Mini lots: 2.273
-        // - Micro lots: 22.727
-
-        // Calculate standard lots, keeping decimals
+        // Standard lots, keeping decimals
         const stdLots = positionSizeInUnits / STANDARD_LOT;
 
         // Calculate mini lots, keeping decimals
@@ -396,19 +415,19 @@ export default function PositionSizeCalculator() {
         // Calculate stop loss price level (for display)
         const stopLossLevel = entry - stopLoss * pipSize;
 
-        // For the reference app's pip display, converting to absolute number
-        const absoluteStopLoss = stopLoss * Math.pow(10, pipDecimalPlaces);
+        // Calculate total stop loss pips to match reference app
+        const totalStopLossPips = stopLoss * 10000;
 
         // Update state with all calculated values
         setPositionSize(totalLots);
-        setPositionSizeUnits(Math.round(positionSizeInUnits));
+        setPositionSizeUnits(positionSizeInUnits);
         setStandardLots(stdLots); // Set the raw decimal value
         setMiniLots(miniLots); // Set the raw decimal value
         setMicroLots(microLots); // Set the raw decimal value
         setCalculatedRiskAmount(riskAmt);
-        setPipValue(Math.round(totalPipValue));
+        setPipValue(totalPipValue);
         setStopLossLevel(stopLossLevel);
-        setAdjustedStopLoss(absoluteStopLoss);
+        setAdjustedStopLoss(totalStopLossPips);
       }
     } catch (error) {
       console.error("Calculation error:", error);
@@ -449,7 +468,7 @@ export default function PositionSizeCalculator() {
         title="Position Size Calculator"
         subtitle="Calculate the optimal position size based on your risk parameters"
       />
-      <CalculatorCard title="Position Size Calculator">
+      <CalculatorCard title="Calculate Position Size">
         <View style={styles.inputsContainer}>
           <AccountCurrencySelector
             value={accountCurrency}
@@ -462,15 +481,17 @@ export default function PositionSizeCalculator() {
             onSelect={(pair) => setCurrencyPair(pair)}
           />
 
+
+
           <TextInput
-            label="Account Balance"
+            label="Account balance"
             value={accountBalance}
             onChangeText={setAccountBalance}
             keyboardType="numeric"
             left={
               <TextInput.Affix text={accountCurrency === "USD" ? "$" : ""} />
             }
-            style={styles.input}
+            style={styles.textInput}
             mode="outlined"
             outlineColor={isDark ? "#444" : "#ddd"}
             activeOutlineColor="#6200ee"
@@ -483,181 +504,109 @@ export default function PositionSizeCalculator() {
             }}
           />
 
-          <Text
-            style={[styles.inputLabel, { color: isDark ? "#fff" : "#000" }]}
-          >
-            Risk Type:
-          </Text>
-          <SegmentedButtons
-            value={riskInputType}
-            onValueChange={setRiskInputType}
-            buttons={[
-              { value: "percentage", label: "Percentage" },
-              { value: "amount", label: "Amount" },
-            ]}
-            style={styles.segmentedButtons}
-          />
 
-          {riskInputType === "percentage" ? (
-            <Surface style={styles.inputSurface} elevation={0}>
-              <Text
-                style={[
-                  styles.surfaceLabel,
-                  { color: isDark ? "#fff" : "#000" },
-                ]}
-              >
-                Risk Percentage
-              </Text>
-              <TextInput
-                value={riskPercentage}
-                onChangeText={setRiskPercentage}
-                keyboardType="numeric"
-                right={<TextInput.Affix text="%" />}
-                style={styles.surfaceInput}
-                mode="flat"
-                outlineColor={isDark ? "#444" : "#ddd"}
-                activeOutlineColor="#6200ee"
-                textColor={isDark ? "#fff" : "#000"}
-                theme={{
-                  colors: {
-                    background: "transparent",
-                    onSurfaceVariant: isDark ? "#aaa" : "#666",
-                  },
-                }}
-              />
-            </Surface>
-          ) : (
-            <Surface style={styles.inputSurface} elevation={0}>
-              <Text
-                style={[
-                  styles.surfaceLabel,
-                  { color: isDark ? "#fff" : "#000" },
-                ]}
-              >
-                Risk Amount
-              </Text>
-              <TextInput
-                value={riskAmount}
-                onChangeText={setRiskAmount}
-                keyboardType="numeric"
-                left={
-                  <TextInput.Affix
-                    text={accountCurrency === "USD" ? "$" : ""}
-                  />
+          {/* Risk Type Selector - New Style */}
+
+          <TextInput
+  label="Risk"
+  value={riskInputType === "percentage" ? riskPercentage : riskAmount}
+  onChangeText={riskInputType === "percentage" ? setRiskPercentage : setRiskAmount}
+  keyboardType="numeric"
+  style={styles.textInput}
+  mode="outlined"
+  outlineColor={isDark ? "#444" : "#ddd"}
+  activeOutlineColor="#6200ee"
+  textColor={isDark ? "#fff" : "#000"}
+  theme={{
+    colors: {
+      background: isDark ? "#2A2A2A" : "#f5f5f5",
+      onSurfaceVariant: isDark ? "#aaa" : "#666",
+    },
+  }}
+  right={
+    <TextInput.Affix
+      text={
+        <TouchableOpacity
+          onPress={() => setRiskTypeModalVisible(true)}
+          style={styles.selectorButton}
+        >
+          <View style={styles.selectorButtonContent}>
+            <Text style={styles.selectorText}>
+              {riskInputType === "percentage" ? "%" : accountCurrency}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={16}
+              color={isDark ? "#aaa" : "#666"}
+              style={{ marginLeft: 4 }}
+            />
+          </View>
+        </TouchableOpacity>
+      }
+    />
+  }
+/>
+
+          {/* Stop Loss Type Selector - New Style */}
+
+          <TextInput
+            label="Stop loss"
+            value={stopLossInputType === "pips" ? stopLossPips : stopLossPrice}
+            onChangeText={stopLossInputType === "pips" ? setStopLossPips : setStopLossPrice}
+            keyboardType="numeric"
+            style={styles.textInput}
+            mode="outlined"
+            outlineColor={isDark ? "#444" : "#ddd"}
+            activeOutlineColor="#6200ee"
+            textColor={isDark ? "#fff" : "#000"}
+            theme={{
+              colors: {
+                background: isDark ? "#2A2A2A" : "#f5f5f5",
+                onSurfaceVariant: isDark ? "#aaa" : "#666",
+              },
+            }}
+            right={
+              <TextInput.Affix
+                text={
+                  <TouchableOpacity
+                    onPress={() => setStopLossTypeModalVisible(true)}
+                    style={styles.selectorButton}
+                  >
+                    <View style={styles.selectorButtonContent}>
+                      <Text style={styles.selectorText }>
+                        {stopLossInputType === "pips" ? "Pips" : accountCurrency}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={isDark ? "#aaa" : "#666"}
+                        style={{ marginLeft: 4 }}
+                      />
+                    </View>
+                  </TouchableOpacity>
                 }
-                style={styles.surfaceInput}
-                mode="flat"
-                outlineColor={isDark ? "#444" : "#ddd"}
-                activeOutlineColor="#6200ee"
-                textColor={isDark ? "#fff" : "#000"}
-                theme={{
-                  colors: {
-                    background: "transparent",
-                    onSurfaceVariant: isDark ? "#aaa" : "#666",
-                  },
-                }}
               />
-            </Surface>
-          )}
-
-          <Text
-            style={[styles.inputLabel, { color: isDark ? "#fff" : "#000" }]}
-          >
-            Stop Loss Type:
-          </Text>
-          <SegmentedButtons
-            value={stopLossInputType}
-            onValueChange={setStopLossInputType}
-            buttons={[
-              { value: "pips", label: "Pips" },
-              { value: "price", label: "Price" },
-            ]}
-            style={styles.segmentedButtons}
+            }
           />
 
           {stopLossInputType === "price" && (
-            <Surface style={styles.inputSurface} elevation={0}>
-              <Text
-                style={[
-                  styles.surfaceLabel,
-                  { color: isDark ? "#fff" : "#000" },
-                ]}
-              >
-                Entry Price
-              </Text>
               <TextInput
+              label="Entry Price"
                 value={entryPrice}
                 onChangeText={setEntryPrice}
                 keyboardType="numeric"
-                style={styles.surfaceInput}
-                mode="flat"
+                style={styles.textInput}
+                mode="outlined"
                 outlineColor={isDark ? "#444" : "#ddd"}
                 activeOutlineColor="#6200ee"
                 textColor={isDark ? "#fff" : "#000"}
                 theme={{
                   colors: {
-                    background: "transparent",
+                    background: isDark ? "#2A2A2A" : "#f5f5f5",
                     onSurfaceVariant: isDark ? "#aaa" : "#666",
                   },
                 }}
               />
-            </Surface>
-          )}
-
-          {stopLossInputType === "pips" ? (
-            <Surface style={styles.inputSurface} elevation={0}>
-              <Text
-                style={[
-                  styles.surfaceLabel,
-                  { color: isDark ? "#fff" : "#000" },
-                ]}
-              >
-                Stop Loss (Pips)
-              </Text>
-              <TextInput
-                value={stopLossPips}
-                onChangeText={setStopLossPips}
-                keyboardType="numeric"
-                style={styles.surfaceInput}
-                mode="flat"
-                outlineColor={isDark ? "#444" : "#ddd"}
-                activeOutlineColor="#6200ee"
-                textColor={isDark ? "#fff" : "#000"}
-                theme={{
-                  colors: {
-                    background: "transparent",
-                    onSurfaceVariant: isDark ? "#aaa" : "#666",
-                  },
-                }}
-              />
-            </Surface>
-          ) : (
-            <Surface style={styles.inputSurface} elevation={0}>
-              <Text
-                style={[
-                  styles.surfaceLabel,
-                  { color: isDark ? "#fff" : "#000" },
-                ]}
-              >
-                Stop Loss Price
-              </Text>
-              <TextInput
-                value={stopLossPrice}
-                onChangeText={setStopLossPrice}
-                keyboardType="numeric"
-                style={styles.surfaceInput}
-                mode="flat"
-                outlineColor={isDark ? "#444" : "#ddd"}
-                activeOutlineColor="#6200ee"
-                textColor={isDark ? "#fff" : "#000"}
-                theme={{
-                  colors: {
-                    background: "transparent",
-                    onSurfaceVariant: isDark ? "#aaa" : "#666",
-                  },
-                }}
-              />
-            </Surface>
           )}
         </View>
 
@@ -676,32 +625,26 @@ export default function PositionSizeCalculator() {
           <View style={styles.resultsContainer}>
             <ResultDisplay
               label="Position Size - Unit"
-              value={`${positionSizeUnits.toLocaleString()} `}
+              value={`${positionSizeUnits.toFixed(3)}`}
               color="#4CAF50"
               isLarge
             />
 
             <ResultDisplay
               label="Standard Lot"
-              value={`${standardLots.toFixed(
-                3
-              )} (${STANDARD_LOT.toLocaleString()} units)`}
+              value={`${standardLots.toFixed(3)} (${STANDARD_LOT.toLocaleString()} units)`}
               color="#2196F3"
             />
 
             <ResultDisplay
               label="Mini Lot"
-              value={`${miniLots.toFixed(
-                3
-              )} (${MINI_LOT.toLocaleString()} units)`}
+              value={`${miniLots.toFixed(3)} (${MINI_LOT.toLocaleString()} units)`}
               color="#2196F3"
             />
 
             <ResultDisplay
               label="Micro Lot"
-              value={`${microLots.toFixed(
-                3
-              )} (${MICRO_LOT.toLocaleString()} units)`}
+              value={`${microLots.toFixed(3)} (${MICRO_LOT.toLocaleString()} units)`}
               color="#2196F3"
             />
 
@@ -711,7 +654,7 @@ export default function PositionSizeCalculator() {
               color="#FF5252"
             />
 
-            {stopLossInputType === "pips" ? (
+            {stopLossInputType === "price" ? (
               <ResultDisplay
                 label="Stop Loss"
                 value={`${adjustedStopLoss.toLocaleString()} Pips`}
@@ -727,7 +670,7 @@ export default function PositionSizeCalculator() {
 
             <ResultDisplay
               label="Pip Value"
-              value={formatCurrency(pipValue, accountCurrency)}
+              value={formatCurrency(parseFloat(pipValue.toFixed(3)), accountCurrency)}
               color="#2196F3"
             />
 
@@ -741,6 +684,103 @@ export default function PositionSizeCalculator() {
           </View>
         )}
       </CalculatorCard>
+
+      {/* Risk Type Modal */}
+      <Portal>
+        <Modal
+          visible={riskTypeModalVisible}
+          onDismiss={() => setRiskTypeModalVisible(false)}
+          contentContainerStyle={[
+            styles.modalContainer,
+            { backgroundColor: isDark ? "#1E1E1E" : "#f5f5f5" }
+          ]}
+          statusBarTranslucent={true}
+        >
+          <Text style={[styles.modalTitle, { color: isDark ? "#fff" : "#000" }]}>
+            Select Risk Type
+          </Text>
+          <List.Item
+            title="Percentage"
+            titleStyle={{ color: isDark ? "#fff" : "#000" }}
+            onPress={() => {
+              setRiskInputType("percentage");
+              setRiskTypeModalVisible(false);
+            }}
+            right={() =>
+              riskInputType === "percentage" ? <Ionicons name="checkmark" size={24} color="#6200ee" /> : null
+            }
+            style={styles.modalItem}
+          />
+          <List.Item
+            title="Amount"
+            titleStyle={{ color: isDark ? "#fff" : "#000" }}
+            onPress={() => {
+              setRiskInputType("amount");
+              setRiskTypeModalVisible(false);
+            }}
+            right={() =>
+              riskInputType === "amount" ? <Ionicons name="checkmark" size={24} color="#6200ee" /> : null
+            }
+            style={styles.modalItem}
+          />
+          <Button
+            mode="text"
+            onPress={() => setRiskTypeModalVisible(false)}
+            textColor="#6200ee"
+            style={styles.modalButton}
+          >
+            Cancel
+          </Button>
+        </Modal>
+      </Portal>
+
+      {/* Stop Loss Type Modal */}
+      <Portal>
+        <Modal
+          visible={stopLossTypeModalVisible}
+          onDismiss={() => setStopLossTypeModalVisible(false)}
+          contentContainerStyle={[
+            styles.modalContainer,
+            { backgroundColor: isDark ? "#1E1E1E" : "#f5f5f5" }
+          ]}
+        >
+          <Text style={[styles.modalTitle, { color: isDark ? "#fff" : "#000" }]}>
+            Select Stop Loss Type
+          </Text>
+          <List.Item
+            title="Pips"
+            titleStyle={{ color: isDark ? "#fff" : "#000" }}
+            onPress={() => {
+              setStopLossInputType("pips");
+              setStopLossTypeModalVisible(false);
+            }}
+            right={() =>
+              stopLossInputType === "pips" ? <Ionicons name="checkmark" size={24} color="#6200ee" /> : null
+            }
+            style={styles.modalItem}
+          />
+          <List.Item
+            title="Price"
+            titleStyle={{ color: isDark ? "#fff" : "#000" }}
+            onPress={() => {
+              setStopLossInputType("price");
+              setStopLossTypeModalVisible(false);
+            }}
+            right={() =>
+              stopLossInputType === "price" ? <Ionicons name="checkmark" size={24} color="#6200ee" /> : null
+            }
+            style={styles.modalItem}
+          />
+          <Button
+            mode="text"
+            onPress={() => setStopLossTypeModalVisible(false)}
+            textColor="#6200ee"
+            style={styles.modalButton}
+          >
+            Cancel
+          </Button>
+        </Modal>
+      </Portal>
     </View>
   );
 }
@@ -812,4 +852,83 @@ const styles = StyleSheet.create({
     color: "#FF5252",
     textAlign: "center",
   },
+  // New selector styles
+  sectionLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  selectorContainer: {
+    overflow: "hidden",
+  },
+  selectorContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 0,
+    marginBottom: 16,
+  },
+  selectorInput: {
+    flex: 1,
+    height: 50,
+    fontSize: 16,
+  },
+  selectorRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingLeft: 8,
+  },
+  // Modal styles
+  modalContainer: {
+    margin: 20,
+    borderRadius: 10,
+    padding: 16,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  modalItem: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "rgba(150, 150, 150, 0.2)",
+  },
+  modalButton: {
+    marginTop: 16,
+  },
+  inputContainer: {
+    borderRadius: 8,
+    marginBottom: 16,
+    padding: 0,
+    borderWidth: 1,
+    borderColor: "#6200ee",
+    backgroundColor: "transparent",
+    overflow: "hidden",
+  },
+  textInput: {
+    marginBottom: 16,
+  },
+  selectorButton: {
+    height: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    marginRight: 0, // Add some margin to prevent overlapping with the input field
+  },
+  
+  selectorButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  
+  selectorText: {
+    fontSize: 14,
+    marginRight: 0,
+    // Prevent text truncation
+    flexShrink: 0,
+  }
+
 });
