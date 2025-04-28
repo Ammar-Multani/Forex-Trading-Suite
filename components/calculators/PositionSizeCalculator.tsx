@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  TouchableOpacity,
+} from "react-native";
 import {
   TextInput,
   Divider,
@@ -13,7 +19,12 @@ import {
   Button,
   List,
 } from "react-native-paper";
-import { formatCurrency, getPipDecimalPlaces, calculatePipValueInQuoteCurrency, calculatePipValueInAccountCurrency } from "../../utils/calculators";
+import {
+  formatCurrency,
+  getPipDecimalPlaces,
+  calculatePipValueInQuoteCurrency,
+  calculatePipValueInAccountCurrency,
+} from "../../utils/calculators";
 import CalculatorCard from "../ui/CalculatorCard";
 import ResultDisplay from "../ui/ResultDisplay";
 import CurrencyPairSelector from "../ui/CurrencyPairSelector";
@@ -47,11 +58,13 @@ const STORAGE_KEYS = {
   RISK_INPUT_TYPE: "position_calculator_risk_input_type",
   STOP_LOSS_INPUT_TYPE: "position_calculator_stop_loss_input_type",
   PIP_DECIMAL_PLACES: "position_calculator_pip_decimal_places",
+  POSITION_TYPE: "position_calculator_position_type",
 };
 
 export default function PositionSizeCalculator() {
   // Add a ref to track if this is the first mount
   const isInitialMount = useRef(true);
+  const apiCallInProgress = useRef(false);
 
   // Initialize the ApiManager hook with component name for tracking
   const {
@@ -65,13 +78,16 @@ export default function PositionSizeCalculator() {
   const { isDark } = useTheme();
   const [accountCurrency, setAccountCurrency] = useState("USD");
   const [currencyPair, setCurrencyPair] = useState("GBP/USD");
-  const [accountBalance, setAccountBalance] = useState("1000");
-  const [riskPercentage, setRiskPercentage] = useState("5");
-  const [riskAmount, setRiskAmount] = useState("50");
-  const [entryPrice, setEntryPrice] = useState("1.3500");
-  const [stopLossPips, setStopLossPips] = useState("22");
-  const [stopLossPrice, setStopLossPrice] = useState("1.3278");
+  const [accountBalance, setAccountBalance] = useState("0");
+  const [riskPercentage, setRiskPercentage] = useState("0");
+  const [riskAmount, setRiskAmount] = useState("0");
+  const [entryPrice, setEntryPrice] = useState("0");
+  const [stopLossPips, setStopLossPips] = useState("0");
+  const [stopLossPrice, setStopLossPrice] = useState("0");
   const [pipDecimalPlaces, setPipDecimalPlaces] = useState(4);
+  const [positionType, setPositionType] = useState("long");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isRefreshingEntryPrice, setIsRefreshingEntryPrice] = useState(false);
 
   // UI state toggles
   const [riskInputType, setRiskInputType] = useState("percentage"); // "percentage" or "amount"
@@ -93,7 +109,153 @@ export default function PositionSizeCalculator() {
 
   // New state for modal visibility
   const [riskTypeModalVisible, setRiskTypeModalVisible] = useState(false);
-  const [stopLossTypeModalVisible, setStopLossTypeModalVisible] = useState(false);
+  const [stopLossTypeModalVisible, setStopLossTypeModalVisible] =
+    useState(false);
+
+  // Add function to fetch current market rate
+  const fetchCurrentRate = useCallback(async () => {
+    // Prevent multiple API calls simultaneously
+    if (apiCallInProgress.current) {
+      return;
+    }
+
+    apiCallInProgress.current = true;
+    setIsRefreshingEntryPrice(true);
+    setCalculationError(null);
+
+    try {
+      // Check network connectivity first
+      const netInfoState = await NetInfo.fetch();
+      if (!netInfoState.isConnected) {
+        Alert.alert(
+          "No Internet Connection",
+          "Please connect to the internet to fetch live exchange rates."
+        );
+        setIsRefreshingEntryPrice(false);
+        apiCallInProgress.current = false;
+        return;
+      }
+
+      // Format the currency pair for API
+      const pairData = getCurrencyPairByName(currencyPair);
+      if (!pairData) {
+        throw new Error(`Invalid currency pair: ${currencyPair}`);
+      }
+
+      // Use the pairString (e.g., "EURUSD") for the API call
+      const pairString = currencyPair.replace("/", "");
+
+      // Add retry logic to make rate fetching more reliable
+      let retries = 0;
+      const maxRetries = 2;
+      let rate;
+
+      while (retries <= maxRetries) {
+        try {
+          rate = await getForexPairRate(pairString);
+          break; // If successful, exit the retry loop
+        } catch (error) {
+          retries++;
+          if (retries > maxRetries) throw error;
+          // Wait briefly before retrying
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+
+      if (!rate || rate <= 0) {
+        throw new Error("Received invalid rate from API");
+      }
+
+      // Update the entry price field
+      setEntryPrice(rate.toFixed(5));
+      setLastUpdated(new Date());
+
+      // If using stop loss in pips, update the stop loss price based on the new entry price
+      if (stopLossInputType === "pips") {
+        const pips = parseFloat(stopLossPips) || 0;
+        if (pips > 0) {
+          const pipFactor = Math.pow(10, -pipDecimalPlaces);
+          const isLongPosition = positionType === "long";
+          const newStopLossPrice = isLongPosition
+            ? rate - pips * pipFactor
+            : rate + pips * pipFactor;
+          setStopLossPrice(newStopLossPrice.toFixed(5));
+        }
+      }
+
+      console.log(`Successfully fetched rate for ${currencyPair}: ${rate}`);
+    } catch (error) {
+      console.error("Error fetching current rate:", error);
+      if (error instanceof Error) {
+        setCalculationError(`Failed to fetch rate: ${error.message}`);
+      } else {
+        setCalculationError("Failed to fetch current exchange rate");
+      }
+    } finally {
+      setIsRefreshingEntryPrice(false);
+      apiCallInProgress.current = false;
+    }
+  }, [
+    currencyPair,
+    getForexPairRate,
+    stopLossInputType,
+    stopLossPips,
+    pipDecimalPlaces,
+    positionType,
+  ]);
+
+  // Load calculator values from AsyncStorage
+  const loadCalculatorValues = useCallback(async () => {
+    try {
+      // Load all values from AsyncStorage
+      const [
+        savedAccountCurrency,
+        savedCurrencyPair,
+        savedAccountBalance,
+        savedRiskPercentage,
+        savedRiskAmount,
+        savedEntryPrice,
+        savedStopLossPips,
+        savedStopLossPrice,
+        savedRiskInputType,
+        savedStopLossInputType,
+        savedPipDecimalPlaces,
+        savedPositionType,
+      ] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.ACCOUNT_CURRENCY),
+        AsyncStorage.getItem(STORAGE_KEYS.CURRENCY_PAIR),
+        AsyncStorage.getItem(STORAGE_KEYS.ACCOUNT_BALANCE),
+        AsyncStorage.getItem(STORAGE_KEYS.RISK_PERCENTAGE),
+        AsyncStorage.getItem(STORAGE_KEYS.RISK_AMOUNT),
+        AsyncStorage.getItem(STORAGE_KEYS.ENTRY_PRICE),
+        AsyncStorage.getItem(STORAGE_KEYS.STOP_LOSS_PIPS),
+        AsyncStorage.getItem(STORAGE_KEYS.STOP_LOSS_PRICE),
+        AsyncStorage.getItem(STORAGE_KEYS.RISK_INPUT_TYPE),
+        AsyncStorage.getItem(STORAGE_KEYS.STOP_LOSS_INPUT_TYPE),
+        AsyncStorage.getItem(STORAGE_KEYS.PIP_DECIMAL_PLACES),
+        AsyncStorage.getItem(STORAGE_KEYS.POSITION_TYPE),
+      ]);
+
+      // Update state with saved values if they exist
+      if (savedAccountCurrency) setAccountCurrency(savedAccountCurrency);
+      if (savedCurrencyPair) setCurrencyPair(savedCurrencyPair);
+      if (savedAccountBalance) setAccountBalance(savedAccountBalance);
+      if (savedRiskPercentage) setRiskPercentage(savedRiskPercentage);
+      if (savedRiskAmount) setRiskAmount(savedRiskAmount);
+      if (savedEntryPrice) setEntryPrice(savedEntryPrice);
+      if (savedStopLossPips) setStopLossPips(savedStopLossPips);
+      if (savedStopLossPrice) setStopLossPrice(savedStopLossPrice);
+      if (savedRiskInputType) setRiskInputType(savedRiskInputType);
+      if (savedStopLossInputType) setStopLossInputType(savedStopLossInputType);
+      if (savedPipDecimalPlaces)
+        setPipDecimalPlaces(parseInt(savedPipDecimalPlaces));
+      if (savedPositionType) setPositionType(savedPositionType);
+
+      console.log("Position size calculator values loaded successfully");
+    } catch (error) {
+      console.error("Error loading position size calculator values:", error);
+    }
+  }, []);
 
   // Save calculator values to AsyncStorage
   const saveCalculatorValues = useCallback(async () => {
@@ -110,6 +272,7 @@ export default function PositionSizeCalculator() {
         [STORAGE_KEYS.RISK_INPUT_TYPE]: riskInputType,
         [STORAGE_KEYS.STOP_LOSS_INPUT_TYPE]: stopLossInputType,
         [STORAGE_KEYS.PIP_DECIMAL_PLACES]: pipDecimalPlaces.toString(),
+        [STORAGE_KEYS.POSITION_TYPE]: positionType,
       };
 
       // Save each value to AsyncStorage
@@ -135,57 +298,8 @@ export default function PositionSizeCalculator() {
     riskInputType,
     stopLossInputType,
     pipDecimalPlaces,
+    positionType,
   ]);
-
-  // Load calculator values from AsyncStorage
-  const loadCalculatorValues = useCallback(async () => {
-    try {
-      // Load all values from AsyncStorage
-      const [
-        savedAccountCurrency,
-        savedCurrencyPair,
-        savedAccountBalance,
-        savedRiskPercentage,
-        savedRiskAmount,
-        savedEntryPrice,
-        savedStopLossPips,
-        savedStopLossPrice,
-        savedRiskInputType,
-        savedStopLossInputType,
-        savedPipDecimalPlaces,
-      ] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.ACCOUNT_CURRENCY),
-        AsyncStorage.getItem(STORAGE_KEYS.CURRENCY_PAIR),
-        AsyncStorage.getItem(STORAGE_KEYS.ACCOUNT_BALANCE),
-        AsyncStorage.getItem(STORAGE_KEYS.RISK_PERCENTAGE),
-        AsyncStorage.getItem(STORAGE_KEYS.RISK_AMOUNT),
-        AsyncStorage.getItem(STORAGE_KEYS.ENTRY_PRICE),
-        AsyncStorage.getItem(STORAGE_KEYS.STOP_LOSS_PIPS),
-        AsyncStorage.getItem(STORAGE_KEYS.STOP_LOSS_PRICE),
-        AsyncStorage.getItem(STORAGE_KEYS.RISK_INPUT_TYPE),
-        AsyncStorage.getItem(STORAGE_KEYS.STOP_LOSS_INPUT_TYPE),
-        AsyncStorage.getItem(STORAGE_KEYS.PIP_DECIMAL_PLACES),
-      ]);
-
-      // Update state with saved values if they exist
-      if (savedAccountCurrency) setAccountCurrency(savedAccountCurrency);
-      if (savedCurrencyPair) setCurrencyPair(savedCurrencyPair);
-      if (savedAccountBalance) setAccountBalance(savedAccountBalance);
-      if (savedRiskPercentage) setRiskPercentage(savedRiskPercentage);
-      if (savedRiskAmount) setRiskAmount(savedRiskAmount);
-      if (savedEntryPrice) setEntryPrice(savedEntryPrice);
-      if (savedStopLossPips) setStopLossPips(savedStopLossPips);
-      if (savedStopLossPrice) setStopLossPrice(savedStopLossPrice);
-      if (savedRiskInputType) setRiskInputType(savedRiskInputType);
-      if (savedStopLossInputType) setStopLossInputType(savedStopLossInputType);
-      if (savedPipDecimalPlaces)
-        setPipDecimalPlaces(parseInt(savedPipDecimalPlaces));
-
-      console.log("Position size calculator values loaded successfully");
-    } catch (error) {
-      console.error("Error loading position size calculator values:", error);
-    }
-  }, []);
 
   // When risk input type changes, sync the values
   useEffect(() => {
@@ -218,6 +332,10 @@ export default function PositionSizeCalculator() {
         const pips = Math.abs(entry - stopLoss) * pipFactor;
         setStopLossPips(pips.toFixed(0));
       }
+
+      // When switching to pips mode, set position type to long and fetch latest rate
+      setPositionType("long");
+      fetchCurrentRate();
     } else {
       // When switching to price, calculate from pips
       const entry = parseFloat(entryPrice) || 0;
@@ -238,13 +356,37 @@ export default function PositionSizeCalculator() {
     }
   }, [apiError]);
 
-  // Load values on initial mount
+  // Fetch on initial mount and load saved values
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      loadCalculatorValues();
+
+      // First load saved values
+      loadCalculatorValues().then(() => {
+        // Always fetch current rate on initial load to ensure accuracy
+        fetchCurrentRate();
+      });
     }
-  }, [loadCalculatorValues]);
+  }, [fetchCurrentRate, loadCalculatorValues]);
+
+  // Update when currency pair changes - fetch new rate to update entry price
+  useEffect(() => {
+    // Skip on initial render since we'll fetch in the mount effect
+    if (isInitialMount.current) {
+      return;
+    }
+
+    // Fetch rate when currency pair changes
+    fetchCurrentRate();
+  }, [currencyPair, fetchCurrentRate]);
+
+  // Make sure to fetch when switching to "pips" mode for stop loss
+  useEffect(() => {
+    if (!isInitialMount.current && stopLossInputType === "pips") {
+      // When in pips mode, always refresh the rate to ensure accuracy
+      fetchCurrentRate();
+    }
+  }, [stopLossInputType, fetchCurrentRate]);
 
   // Save values whenever they change (except on initial mount)
   useEffect(() => {
@@ -263,6 +405,7 @@ export default function PositionSizeCalculator() {
     riskInputType,
     stopLossInputType,
     pipDecimalPlaces,
+    positionType,
     saveCalculatorValues,
   ]);
 
@@ -281,6 +424,7 @@ export default function PositionSizeCalculator() {
     stopLossPips,
     stopLossPrice,
     pipDecimalPlaces,
+    positionType,
   ]);
 
   const fetchExchangeRateForPair = useCallback(async () => {
@@ -412,11 +556,14 @@ export default function PositionSizeCalculator() {
         // Calculate pip value for entire position
         const totalPipValue = pipValueForOneUnit * positionSizeInUnits;
 
-        // Calculate stop loss price level (for display)
-        const stopLossLevel = entry - stopLoss * pipSize;
+        // Calculate stop loss price level based on position type
+        const isLongPosition = positionType === "long";
+        const stopLossLevel = isLongPosition
+          ? entry - stopLoss * pipSize
+          : entry + stopLoss * pipSize;
 
-        // Calculate total stop loss pips to match reference app
-        const totalStopLossPips = stopLoss * 10000;
+        // Calculate total stop loss pips (no extra multiplication needed)
+        const totalStopLossPips = stopLoss;
 
         // Update state with all calculated values
         setPositionSize(totalLots);
@@ -459,6 +606,7 @@ export default function PositionSizeCalculator() {
     stopLossPips,
     stopLossPrice,
     pipDecimalPlaces,
+    positionType,
     fetchExchangeRateForPair,
   ]);
 
@@ -481,8 +629,6 @@ export default function PositionSizeCalculator() {
             onSelect={(pair) => setCurrencyPair(pair)}
           />
 
-
-
           <TextInput
             label="Account balance"
             value={accountBalance}
@@ -504,94 +650,101 @@ export default function PositionSizeCalculator() {
             }}
           />
 
-
-          {/* Risk Type Selector - New Style */}
-
-          <TextInput
-  label="Risk"
-  value={riskInputType === "percentage" ? riskPercentage : riskAmount}
-  onChangeText={riskInputType === "percentage" ? setRiskPercentage : setRiskAmount}
-  keyboardType="numeric"
-  style={styles.textInput}
-  mode="outlined"
-  outlineColor={isDark ? "#444" : "#ddd"}
-  activeOutlineColor="#6200ee"
-  textColor={isDark ? "#fff" : "#000"}
-  theme={{
-    colors: {
-      background: isDark ? "#2A2A2A" : "#f5f5f5",
-      onSurfaceVariant: isDark ? "#aaa" : "#666",
-    },
-  }}
-  right={
-    <TextInput.Affix
-      text={
-        <TouchableOpacity
-          onPress={() => setRiskTypeModalVisible(true)}
-          style={styles.selectorButton}
-        >
-          <View style={styles.selectorButtonContent}>
-            <Text style={styles.selectorText}>
-              {riskInputType === "percentage" ? "%" : accountCurrency}
-            </Text>
-            <Ionicons
-              name="chevron-down"
-              size={16}
-              color={isDark ? "#aaa" : "#666"}
-              style={{ marginLeft: 4 }}
-            />
-          </View>
-        </TouchableOpacity>
-      }
-    />
-  }
-/>
-
-          {/* Stop Loss Type Selector - New Style */}
-
-          <TextInput
-            label="Stop loss"
-            value={stopLossInputType === "pips" ? stopLossPips : stopLossPrice}
-            onChangeText={stopLossInputType === "pips" ? setStopLossPips : setStopLossPrice}
-            keyboardType="numeric"
-            style={styles.textInput}
-            mode="outlined"
-            outlineColor={isDark ? "#444" : "#ddd"}
-            activeOutlineColor="#6200ee"
-            textColor={isDark ? "#fff" : "#000"}
-            theme={{
-              colors: {
-                background: isDark ? "#2A2A2A" : "#f5f5f5",
-                onSurfaceVariant: isDark ? "#aaa" : "#666",
-              },
-            }}
-            right={
-              <TextInput.Affix
-                text={
-                  <TouchableOpacity
-                    onPress={() => setStopLossTypeModalVisible(true)}
-                    style={styles.selectorButton}
-                  >
-                    <View style={styles.selectorButtonContent}>
-                      <Text style={styles.selectorText }>
-                        {stopLossInputType === "pips" ? "Pips" : accountCurrency}
-                      </Text>
-                      <Ionicons
-                        name="chevron-down"
-                        size={16}
-                        color={isDark ? "#aaa" : "#666"}
-                        style={{ marginLeft: 4 }}
-                      />
-                    </View>
-                  </TouchableOpacity>
-                }
-              />
-            }
-          />
-
+          {/* Position Type Selector - Only show when stop loss type is price
           {stopLossInputType === "price" && (
+            <View style={styles.radioGroup}>
+              <Text style={styles.radioLabel}>Position Type</Text>
+              <View style={styles.radioButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.radioButton,
+                    positionType === "long" && styles.radioButtonSelected,
+                  ]}
+                  onPress={() => setPositionType("long")}
+                >
+                  <Text
+                    style={[
+                      styles.radioButtonText,
+                      positionType === "long" && styles.radioButtonTextSelected,
+                    ]}
+                  >
+                    Long
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.radioButton,
+                    positionType === "short" && styles.radioButtonSelected,
+                  ]}
+                  onPress={() => setPositionType("short")}
+                >
+                  <Text
+                    style={[
+                      styles.radioButtonText,
+                      positionType === "short" &&
+                        styles.radioButtonTextSelected,
+                    ]}
+                  >
+                    Short
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )} */}
+
+          {/* Risk Type Selector */}
+          <View style={styles.riskinputContainer}>
+            <TextInput
+              label="Risk"
+              value={
+                riskInputType === "percentage" ? riskPercentage : riskAmount
+              }
+              onChangeText={
+                riskInputType === "percentage"
+                  ? setRiskPercentage
+                  : setRiskAmount
+              }
+              keyboardType="numeric"
+              style={styles.textInput}
+              mode="outlined"
+              outlineColor={isDark ? "#444" : "#ddd"}
+              activeOutlineColor="#6200ee"
+              textColor={isDark ? "#fff" : "#000"}
+              theme={{
+                colors: {
+                  background: isDark ? "#2A2A2A" : "#f5f5f5",
+                  onSurfaceVariant: isDark ? "#aaa" : "#666",
+                },
+              }}
+              right={
+                <TextInput.Affix
+                  text={riskInputType === "percentage" ? "%" : accountCurrency}
+                  textStyle={styles.affixText}
+                />
+              }
+            />
+            <TouchableOpacity
+              style={styles.selectorButton}
+              onPress={() => setRiskTypeModalVisible(true)}
+            >
+              <View style={styles.selectorContent}>
+                <Text style={styles.selectorText}>
+                  {riskInputType === "percentage" ? "%" : accountCurrency}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={16}
+                  color={isDark ? "#aaa" : "#666"}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Entry Price with Refresh Button - Only show when stop loss type is price */}
+          {stopLossInputType === "price" && (
+            <View style={styles.entryPriceContainer}>
               <TextInput
-              label="Entry Price"
+                label="Entry Price"
                 value={entryPrice}
                 onChangeText={setEntryPrice}
                 keyboardType="numeric"
@@ -606,7 +759,92 @@ export default function PositionSizeCalculator() {
                     onSurfaceVariant: isDark ? "#aaa" : "#666",
                   },
                 }}
+                right={
+                  <TextInput.Icon
+                    icon={() => (
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (!isRefreshingEntryPrice) {
+                            fetchCurrentRate();
+                          }
+                        }}
+                        disabled={isRefreshingEntryPrice}
+                        style={{ padding: 5 }}
+                      >
+                        {isRefreshingEntryPrice ? (
+                          <ActivityIndicator size={20} color="#6200ee" />
+                        ) : (
+                          <Ionicons name="refresh" size={20} color="#6200ee" />
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  />
+                }
               />
+              {lastUpdated && (
+                <Text style={styles.lastUpdatedText}>
+                  Last updated: {lastUpdated.toLocaleTimeString()}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Stop Loss Type Selector */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              label="Stop loss"
+              value={
+                stopLossInputType === "pips" ? stopLossPips : stopLossPrice
+              }
+              onChangeText={
+                stopLossInputType === "pips"
+                  ? setStopLossPips
+                  : setStopLossPrice
+              }
+              keyboardType="numeric"
+              style={styles.textInput}
+              mode="outlined"
+              outlineColor={isDark ? "#444" : "#ddd"}
+              activeOutlineColor="#6200ee"
+              textColor={isDark ? "#fff" : "#000"}
+              theme={{
+                colors: {
+                  background: isDark ? "#2A2A2A" : "#f5f5f5",
+                  onSurfaceVariant: isDark ? "#aaa" : "#666",
+                },
+              }}
+              right={
+                <TextInput.Affix
+                  text={stopLossInputType === "pips" ? "Pips" : "Price"}
+                  textStyle={styles.affixText}
+                />
+              }
+            />
+            <TouchableOpacity
+              style={styles.selectorButton}
+              onPress={() => setStopLossTypeModalVisible(true)}
+            >
+              <View style={styles.selectorContent}>
+                <Text style={styles.selectorText}>
+                  {stopLossInputType === "pips" ? "Pips" : "Price"}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={16}
+                  color={isDark ? "#aaa" : "#666"}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Show pips-mode indicator when in pips mode */}
+          {stopLossInputType === "pips" && lastUpdated && (
+            <View style={styles.pipsInfoContainer}>
+              <Text style={styles.pipsInfoText}>
+                Using market rate from {lastUpdated.toLocaleTimeString()} for
+                long position
+              </Text>
+            </View>
           )}
         </View>
 
@@ -625,26 +863,34 @@ export default function PositionSizeCalculator() {
           <View style={styles.resultsContainer}>
             <ResultDisplay
               label="Position Size - Unit"
-              value={`${positionSizeUnits.toFixed(3)}`}
+              value={`${positionSizeUnits.toLocaleString(undefined, {
+                maximumFractionDigits: 3,
+              })}`}
               color="#4CAF50"
               isLarge
             />
 
             <ResultDisplay
               label="Standard Lot"
-              value={`${standardLots.toFixed(3)} (${STANDARD_LOT.toLocaleString()} units)`}
+              value={`${standardLots.toFixed(
+                3
+              )} (${STANDARD_LOT.toLocaleString()} units)`}
               color="#2196F3"
             />
 
             <ResultDisplay
               label="Mini Lot"
-              value={`${miniLots.toFixed(3)} (${MINI_LOT.toLocaleString()} units)`}
+              value={`${miniLots.toFixed(
+                3
+              )} (${MINI_LOT.toLocaleString()} units)`}
               color="#2196F3"
             />
 
             <ResultDisplay
               label="Micro Lot"
-              value={`${microLots.toFixed(3)} (${MICRO_LOT.toLocaleString()} units)`}
+              value={`${microLots.toFixed(
+                3
+              )} (${MICRO_LOT.toLocaleString()} units)`}
               color="#2196F3"
             />
 
@@ -670,7 +916,10 @@ export default function PositionSizeCalculator() {
 
             <ResultDisplay
               label="Pip Value"
-              value={formatCurrency(parseFloat(pipValue.toFixed(3)), accountCurrency)}
+              value={formatCurrency(
+                parseFloat(pipValue.toFixed(3)),
+                accountCurrency
+              )}
               color="#2196F3"
             />
 
@@ -692,11 +941,12 @@ export default function PositionSizeCalculator() {
           onDismiss={() => setRiskTypeModalVisible(false)}
           contentContainerStyle={[
             styles.modalContainer,
-            { backgroundColor: isDark ? "#1E1E1E" : "#f5f5f5" }
+            { backgroundColor: isDark ? "#1E1E1E" : "#f5f5f5" },
           ]}
-          statusBarTranslucent={true}
         >
-          <Text style={[styles.modalTitle, { color: isDark ? "#fff" : "#000" }]}>
+          <Text
+            style={[styles.modalTitle, { color: isDark ? "#fff" : "#000" }]}
+          >
             Select Risk Type
           </Text>
           <List.Item
@@ -707,7 +957,9 @@ export default function PositionSizeCalculator() {
               setRiskTypeModalVisible(false);
             }}
             right={() =>
-              riskInputType === "percentage" ? <Ionicons name="checkmark" size={24} color="#6200ee" /> : null
+              riskInputType === "percentage" ? (
+                <Ionicons name="checkmark" size={24} color="#6200ee" />
+              ) : null
             }
             style={styles.modalItem}
           />
@@ -719,7 +971,9 @@ export default function PositionSizeCalculator() {
               setRiskTypeModalVisible(false);
             }}
             right={() =>
-              riskInputType === "amount" ? <Ionicons name="checkmark" size={24} color="#6200ee" /> : null
+              riskInputType === "amount" ? (
+                <Ionicons name="checkmark" size={24} color="#6200ee" />
+              ) : null
             }
             style={styles.modalItem}
           />
@@ -741,10 +995,12 @@ export default function PositionSizeCalculator() {
           onDismiss={() => setStopLossTypeModalVisible(false)}
           contentContainerStyle={[
             styles.modalContainer,
-            { backgroundColor: isDark ? "#1E1E1E" : "#f5f5f5" }
+            { backgroundColor: isDark ? "#1E1E1E" : "#f5f5f5" },
           ]}
         >
-          <Text style={[styles.modalTitle, { color: isDark ? "#fff" : "#000" }]}>
+          <Text
+            style={[styles.modalTitle, { color: isDark ? "#fff" : "#000" }]}
+          >
             Select Stop Loss Type
           </Text>
           <List.Item
@@ -755,7 +1011,9 @@ export default function PositionSizeCalculator() {
               setStopLossTypeModalVisible(false);
             }}
             right={() =>
-              stopLossInputType === "pips" ? <Ionicons name="checkmark" size={24} color="#6200ee" /> : null
+              stopLossInputType === "pips" ? (
+                <Ionicons name="checkmark" size={24} color="#6200ee" />
+              ) : null
             }
             style={styles.modalItem}
           />
@@ -767,7 +1025,9 @@ export default function PositionSizeCalculator() {
               setStopLossTypeModalVisible(false);
             }}
             right={() =>
-              stopLossInputType === "price" ? <Ionicons name="checkmark" size={24} color="#6200ee" /> : null
+              stopLossInputType === "price" ? (
+                <Ionicons name="checkmark" size={24} color="#6200ee" />
+              ) : null
             }
             style={styles.modalItem}
           />
@@ -861,23 +1121,45 @@ const styles = StyleSheet.create({
   selectorContainer: {
     overflow: "hidden",
   },
+  riskinputContainer: {
+    marginBottom: 16,
+    marginTop: 16,
+    position: "relative",
+  },
+  inputContainer: {
+    marginBottom: 16,
+    position: "relative",
+  },
+  textInput: {
+    marginBottom: 0,
+  },
+  selectorButton: {
+    position: "absolute",
+    right: 12,
+    top: 11.5,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-end",
+    minWidth: 60,
+    zIndex: 1,
+  },
   selectorContent: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 0,
-    marginBottom: 16,
-  },
-  selectorInput: {
-    flex: 1,
-    height: 50,
-    fontSize: 16,
-  },
-  selectorRight: {
-    flexDirection: "row",
-    alignItems: "center",
     justifyContent: "center",
-    paddingLeft: 8,
+  },
+  selectorText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#6200ee",
+    marginRight: 4,
+    textTransform: "capitalize",
+  },
+  affixText: {
+    fontSize: 14,
+    color: "#6200ee",
+    fontWeight: "500",
+    opacity: 0, // Hide the actual affix since we show it in the button
   },
   // Modal styles
   modalContainer: {
@@ -899,36 +1181,57 @@ const styles = StyleSheet.create({
   modalButton: {
     marginTop: 16,
   },
-  inputContainer: {
-    borderRadius: 8,
+  // New styles for position type radio buttons
+  radioGroup: {
     marginBottom: 16,
-    padding: 0,
-    borderWidth: 1,
-    borderColor: "#6200ee",
-    backgroundColor: "transparent",
-    overflow: "hidden",
+    marginTop: 8,
   },
-  textInput: {
-    marginBottom: 16,
-  },
-  selectorButton: {
-    height: 40,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    marginRight: 0, // Add some margin to prevent overlapping with the input field
-  },
-  
-  selectorButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  
-  selectorText: {
+  radioLabel: {
     fontSize: 14,
-    marginRight: 0,
-    // Prevent text truncation
-    flexShrink: 0,
-  }
-
+    color: "#aaa",
+    marginBottom: 8,
+  },
+  radioButtons: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+  },
+  radioButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    marginRight: 12,
+    backgroundColor: "rgba(98, 0, 238, 0.1)",
+  },
+  radioButtonSelected: {
+    backgroundColor: "#6200ee",
+  },
+  radioButtonText: {
+    color: "#6200ee",
+    fontWeight: "500",
+  },
+  radioButtonTextSelected: {
+    color: "#fff",
+  },
+  entryPriceContainer: {
+    marginBottom: 16,
+  },
+  lastUpdatedText: {
+    fontSize: 12,
+    color: "#999",
+    textAlign: "right",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  pipsInfoContainer: {
+    backgroundColor: "rgba(98, 0, 238, 0.08)",
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  pipsInfoText: {
+    fontSize: 12,
+    color: "#6200ee",
+    fontStyle: "italic",
+  },
 });

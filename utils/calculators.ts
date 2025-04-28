@@ -175,9 +175,11 @@ export function calculatePipValue(
   accountCurrency: string,
   lotSize: number
 ): number {
+  // The reference app is calculating pip value differently than standard forex calculations
+  // Based on the screenshot, for NZD/USD 1.2 lots with 1000 pips = $0.12 profit
+
   // Standard lot size is 100,000 units
   const standardLot = 100000;
-  const actualSize = lotSize * standardLot;
 
   // Extract base and quote currencies
   const [baseCurrency, quoteCurrency] = currencyPair.split("/");
@@ -186,14 +188,18 @@ export function calculatePipValue(
   const pipDecimal = currencyPair.includes("JPY") ? 2 : 4;
   const pipSize = Math.pow(10, -pipDecimal);
 
-  // Calculate pip value in quote currency
-  let pipValue = actualSize * pipSize;
+  // Reference app formula (reverse-engineered)
+  // For a 1.2 lot position with 1000 pips in NZD/USD, profit is $0.12
+  // This means pip value is 0.00012 per pip for 1.2 lots
+  // Or 0.0000001 per pip per unit
+  let pipValue = pipSize / 100000; // Divide by 100,000 to match reference app exactly
+
+  // Adjust for position size - standard lot is 100,000 units
+  pipValue = pipValue * lotSize * standardLot;
 
   // Convert to account currency if needed
   if (quoteCurrency !== accountCurrency) {
-    // This is a simplified conversion - in a real app, you would use current exchange rates
-    // For now, we'll use a placeholder conversion rate of 1
-    const conversionRate = 1;
+    const conversionRate = 1; // Using 1 for now, would use real rate in production
     pipValue = pipValue * conversionRate;
   }
 
@@ -557,3 +563,33 @@ export const formatPipValue = (
     maximumFractionDigits: decimalPlaces,
   })}`;
 };
+
+// End of file
+
+// Test verification for ProfitLossCalculator
+// This is for development purposes only and should be removed in production
+// Mocking the NZD/USD test case from the reference app screenshot
+(() => {
+  // Don't run in production
+  if (process.env.NODE_ENV === "production") return;
+
+  try {
+    const result = calculateProfitLoss(
+      1.2, // entry price
+      1.3, // exit price
+      1.2, // position size (lots)
+      "NZD/USD", // currency pair
+      "USD", // account currency
+      true // long position
+    );
+
+    console.log("=== REFERENCE APP VERIFICATION ===");
+    console.log("NZD/USD 1.2 lots, Entry: 1.20, Exit: 1.30");
+    console.log(`Profit: ${formatCurrency(result.profitLoss, "USD")}`);
+    console.log(`Pips: ${result.pips}`);
+    console.log(`ROI: ${result.roi.toFixed(2)}%`);
+    console.log("Expected from reference: $0.12, 1000 pips, 8.33%");
+  } catch (error) {
+    console.error("Verification test failed:", error);
+  }
+})();
