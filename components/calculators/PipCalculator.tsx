@@ -14,6 +14,7 @@ import {
   StatusBar,
 } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useExchangeRates } from "@/contexts/ExchangeRateContext";
 import {
   PageHeader,
   CurrencySelector,
@@ -66,12 +67,11 @@ interface PipCalculatorProps {
 
 const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
   const { colors, isDark } = useTheme();
+  const { accountCurrency } = useExchangeRates();
   const [currencyPair, setCurrencyPair] = useState("EUR/USD");
-  const [currency, setCurrency] = useState<string>("USD");
+  // Initialize currency with account currency from context
+  const [currency, setCurrency] = useState<string>(accountCurrency.code);
   // State for currency selection
-  const [accountCurrency, setAccountCurrency] = useState<Currency>(
-    currencies[0]
-  );
   const [selectedPair, setSelectedPair] = useState<CurrencyPair>(
     currencyPairs[0]
   );
@@ -124,15 +124,6 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
   useEffect(() => {
     const loadPreferences = async () => {
       try {
-        // Load account currency
-        const savedAccountCurrency = await AsyncStorage.getItem(
-          ACCOUNT_CURRENCY_KEY
-        );
-        if (savedAccountCurrency) {
-          const parsedCurrency = JSON.parse(savedAccountCurrency);
-          setAccountCurrency(parsedCurrency);
-        }
-
         // Load currency pair
         const savedCurrencyPair = await AsyncStorage.getItem(CURRENCY_PAIR_KEY);
         if (savedCurrencyPair) {
@@ -191,11 +182,6 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
     const savePreferences = async () => {
       try {
         await AsyncStorage.setItem(
-          ACCOUNT_CURRENCY_KEY,
-          JSON.stringify(accountCurrency)
-        );
-
-        await AsyncStorage.setItem(
           CURRENCY_PAIR_KEY,
           JSON.stringify(selectedPair)
         );
@@ -221,7 +207,6 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
 
     savePreferences();
   }, [
-    accountCurrency,
     selectedPair,
     lotSizes,
     lotType,
@@ -371,11 +356,6 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
     pipDecimalPlaces,
   ]);
 
-  // Handle account currency selection
-  const handleAccountCurrencySelect = (currency: Currency) => {
-    setAccountCurrency(currency);
-  };
-
   // Handle currency pair selection
   const handleCurrencyPairSelect = (pair: CurrencyPair) => {
     setSelectedPair(pair);
@@ -424,6 +404,11 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
   // Handle pip decimal places change
   const handlePipDecimalPlacesChange = (places: number) => {
     setPipDecimalPlaces(places);
+  };
+
+  // Handle currency selection
+  const handleCurrencySelect = (selectedCurrency: Currency) => {
+    setCurrency(selectedCurrency.code);
   };
 
   // Custom header with history button
@@ -582,7 +567,7 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
       >
         <CurrencyModal
           onClose={() => setCurrencyModalVisible(false)}
-          onSelect={handleAccountCurrencySelect}
+          onSelect={handleCurrencySelect}
           selectedCurrency={accountCurrency}
         />
       </Modal>

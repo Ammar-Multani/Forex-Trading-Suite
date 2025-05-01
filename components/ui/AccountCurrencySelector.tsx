@@ -1,12 +1,20 @@
 import React, { useState } from "react";
-import { View, StyleSheet, TouchableOpacity, Image, Text, StatusBar } from "react-native";
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Text,
+  StatusBar,
+} from "react-native";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useExchangeRates } from "../../contexts/ExchangeRateContext";
 import { Ionicons } from "@expo/vector-icons";
 import CurrencyPickerModal from "./CurrencyPickerModal";
 import { Currency, getCurrencyByCode } from "../../constants/currencies";
 
 interface AccountCurrencySelectorProps {
-  value: string;
+  value?: string;
   onChange: (value: string) => void;
   label?: string;
 }
@@ -18,9 +26,13 @@ export default function AccountCurrencySelector({
 }: AccountCurrencySelectorProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const { isDark } = useTheme();
+  const { accountCurrency } = useExchangeRates();
+
+  // Use account currency from context if no value is provided
+  const currentCurrencyCode = value || accountCurrency.code;
 
   // Get currency details for the current value
-  const currencyDetails = getCurrencyByCode(value) || {
+  const currencyDetails = getCurrencyByCode(currentCurrencyCode) || {
     code: "USD",
     name: "US Dollar",
     symbol: "$",
@@ -33,7 +45,6 @@ export default function AccountCurrencySelector({
   };
 
   return (
-    
     <View style={styles.container}>
       <Text
         style={[
@@ -43,7 +54,7 @@ export default function AccountCurrencySelector({
       >
         {label}
       </Text>
-      
+
       <TouchableOpacity
         style={[
           styles.selector,
@@ -69,7 +80,7 @@ export default function AccountCurrencySelector({
             <Text
               style={[styles.currencyCode, { color: isDark ? "#fff" : "#000" }]}
             >
-              {value}
+              {currentCurrencyCode}
             </Text>
             <Text
               style={[
@@ -104,7 +115,7 @@ export default function AccountCurrencySelector({
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onSelect={handleCurrencySelect}
-        selectedCurrency={value}
+        selectedCurrency={currentCurrencyCode}
         title="Select Currency"
       />
     </View>

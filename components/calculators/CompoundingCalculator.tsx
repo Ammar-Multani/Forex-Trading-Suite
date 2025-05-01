@@ -9,6 +9,8 @@ import {
   Modal,
   Animated,
   TouchableWithoutFeedback,
+  StatusBar,
+  SafeAreaView,
 } from "react-native";
 import {
   TextInput,
@@ -514,14 +516,46 @@ const FrequencySelector = ({
 
 export default function CompoundingCalculator() {
   const { isDark } = useTheme();
-  const { isLoading, lastUpdated, refreshRates, error } = useExchangeRates();
+  const { isLoading, lastUpdated, fetchRates, error, accountCurrency } =
+    useExchangeRates();
+  // Add StatusBar configuration with background color matching the header
+  useEffect(() => {
+    StatusBar.setBackgroundColor(isDark ? "#121212" : "#f5f5f5");
+    StatusBar.setBarStyle(isDark ? "light-content" : "dark-content");
+  }, [isDark]);
 
   // Basic inputs
-  const [currency, setCurrency] = useState<string>("USD");
+  const [currency, setCurrency] = useState<string>(accountCurrency.code);
   const [startingBalance, setStartingBalance] = useState("0.00");
   const [rateOfReturn, setRateOfReturn] = useState("0");
   const [years, setYears] = useState("0");
   const [refreshing, setRefreshing] = useState(false);
+
+  // Update currency when accountCurrency changes
+  useEffect(() => {
+    // Only update if no user entered value exists or on first load
+    const checkSavedCurrency = async () => {
+      try {
+        const savedData = await AsyncStorage.getItem(STORAGE_KEY);
+        if (savedData) {
+          const parsedData = JSON.parse(savedData);
+          // If no saved currency or first load, use accountCurrency
+          if (!parsedData.currency) {
+            setCurrency(accountCurrency.code);
+            // Save the new currency
+            saveCalculatorData();
+          }
+        } else {
+          // No saved data, use accountCurrency
+          setCurrency(accountCurrency.code);
+        }
+      } catch (error) {
+        console.error("Error checking saved currency:", error);
+      }
+    };
+
+    checkSavedCurrency();
+  }, [accountCurrency]);
 
   // Frequency dropdowns
   const [returnFrequencyOpen, setReturnFrequencyOpen] = useState(false);
@@ -713,7 +747,13 @@ export default function CompoundingCalculator() {
         const parsedData = JSON.parse(savedData);
 
         // Set all the state values from saved data
-        if (parsedData.currency) setCurrency(parsedData.currency);
+        if (parsedData.currency) {
+          setCurrency(parsedData.currency);
+        } else {
+          // If no saved currency, use account currency from context
+          setCurrency(accountCurrency.code);
+        }
+
         if (parsedData.startingBalance)
           setStartingBalance(parsedData.startingBalance);
         if (parsedData.rateOfReturn) setRateOfReturn(parsedData.rateOfReturn);
@@ -734,9 +774,14 @@ export default function CompoundingCalculator() {
         if (parsedData.taxRate) setTaxRate(parsedData.taxRate);
 
         console.log("Calculator data loaded from storage");
+      } else {
+        // No saved data, use account currency from context as default
+        setCurrency(accountCurrency.code);
       }
     } catch (error) {
       console.error("Error loading calculator data:", error);
+      // If there's an error, still set the default currency from context
+      setCurrency(accountCurrency.code);
     } finally {
       setDataLoaded(true);
     }
@@ -816,7 +861,7 @@ export default function CompoundingCalculator() {
   // Handle refreshing rates
   const onRefresh = async () => {
     setRefreshing(true);
-    await refreshRates();
+    await fetchRates();
     setRefreshing(false);
   };
 
@@ -1709,7 +1754,6 @@ export default function CompoundingCalculator() {
     backgroundColor: isDark
       ? "rgba(30, 30, 40, 0.25)"
       : "rgba(255, 255, 255, 0.6)",
-    backdropFilter: "blur(10px)",
     borderWidth: 1,
     borderColor: isDark
       ? "rgba(255, 255, 255, 0.12)"
@@ -1734,7 +1778,10 @@ export default function CompoundingCalculator() {
       <CalculatorCard title="Compounding Calculator">
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={refreshRates}>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => fetchRates()}
+          >
             <Ionicons name="refresh" size={16} color="#fff" />
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
@@ -1809,7 +1856,7 @@ export default function CompoundingCalculator() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -1817,7 +1864,7 @@ export default function CompoundingCalculator() {
         }
       >
         <PageHeader
-          title="Compound Interest Calculator"
+          title="Compounding Calculator"
           subtitle="Calculate and visualize the power of compound growth"
         />
 
@@ -2352,9 +2399,10 @@ export default function CompoundingCalculator() {
                   >
                     {isNaN(results.endBalance)
                       ? "0.00"
-                      : formatCurrency(
-                          results.endBalance,
-                        ).replace(/[€$£¥]/g, "")}
+                      : formatCurrency(results.endBalance).replace(
+                          /[€$£¥]/g,
+                          ""
+                        )}
                   </Text>
                 </View>
                 <Text
@@ -2653,7 +2701,7 @@ export default function CompoundingCalculator() {
 
       {/* Add reset button at the bottom */}
       {renderResetButton()}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -2682,7 +2730,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
-    backdropFilter: "blur(5px)",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
   },
@@ -2825,7 +2872,6 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     paddingHorizontal: 24,
     borderRadius: 16,
-    backdropFilter: "blur(5px)",
     borderWidth: 1,
   },
   fullWidthMetric: {
@@ -2923,7 +2969,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     backgroundColor: "rgba(98, 0, 238, 0.1)",
-    backdropFilter: "blur(5px)",
     borderWidth: 1,
     borderColor: "rgba(98, 0, 238, 0.2)",
   },
@@ -2945,7 +2990,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 16,
     backgroundColor: "rgba(98, 0, 238, 0.8)",
-    backdropFilter: "blur(5px)",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",

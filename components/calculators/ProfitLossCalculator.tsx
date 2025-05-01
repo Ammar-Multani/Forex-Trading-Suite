@@ -14,6 +14,7 @@ import AccountCurrencySelector from "../ui/AccountCurrencySelector";
 import PageHeader from "../ui/PageHeader";
 import { useTheme } from "../../contexts/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useExchangeRates } from "../../contexts/ExchangeRateContext";
 
 // Storage keys for persisting calculator values
 const STORAGE_KEYS = {
@@ -28,9 +29,10 @@ const STORAGE_KEYS = {
 export default function ProfitLossCalculator() {
   // Add a ref to track if this is the first mount
   const isInitialMount = useRef(true);
+  const { accountCurrency: contextCurrency } = useExchangeRates();
 
   // State for inputs
-  const [accountCurrency, setAccountCurrency] = useState("USD");
+  const [accountCurrency, setAccountCurrency] = useState(contextCurrency.code);
   const [currencyPair, setCurrencyPair] = useState("EUR/USD");
   const [entryPrice, setEntryPrice] = useState("");
   const [exitPrice, setExitPrice] = useState("");
@@ -97,6 +99,8 @@ export default function ProfitLossCalculator() {
 
       // Update state with saved values if they exist
       if (savedAccountCurrency) setAccountCurrency(savedAccountCurrency);
+      else setAccountCurrency(contextCurrency.code);
+
       if (savedCurrencyPair) setCurrencyPair(savedCurrencyPair);
       if (savedEntryPrice) setEntryPrice(savedEntryPrice);
       if (savedExitPrice) setExitPrice(savedExitPrice);
@@ -107,7 +111,7 @@ export default function ProfitLossCalculator() {
     } catch (error) {
       console.error("Error loading profit/loss calculator values:", error);
     }
-  }, []);
+  }, [contextCurrency]);
 
   // Load values on initial mount
   useEffect(() => {
@@ -116,6 +120,21 @@ export default function ProfitLossCalculator() {
       loadCalculatorValues();
     }
   }, [loadCalculatorValues]);
+
+  // When context currency changes, update state if we don't have a saved value
+  useEffect(() => {
+    if (!isInitialMount.current) {
+      const checkSavedCurrency = async () => {
+        const savedCurrency = await AsyncStorage.getItem(
+          STORAGE_KEYS.ACCOUNT_CURRENCY
+        );
+        if (!savedCurrency) {
+          setAccountCurrency(contextCurrency.code);
+        }
+      };
+      checkSavedCurrency();
+    }
+  }, [contextCurrency]);
 
   // Save values whenever they change (except on initial mount)
   useEffect(() => {

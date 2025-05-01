@@ -31,6 +31,7 @@ import CurrencyPairSelector from "../ui/CurrencyPairSelector";
 import AccountCurrencySelector from "../ui/AccountCurrencySelector";
 import PageHeader from "../ui/PageHeader";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useExchangeRates } from "../../contexts/ExchangeRateContext";
 import useApiManager from "../../hooks/useApiManager";
 import {
   getCurrencyPairByName,
@@ -76,9 +77,10 @@ export default function PositionSizeCalculator() {
 
   // State for inputs
   const { isDark } = useTheme();
-  const [accountCurrency, setAccountCurrency] = useState("USD");
-  const [currencyPair, setCurrencyPair] = useState("GBP/USD");
-  const [accountBalance, setAccountBalance] = useState("0");
+  const { accountCurrency: contextCurrency } = useExchangeRates();
+  const [accountCurrency, setAccountCurrency] = useState(contextCurrency.code);
+  const [currencyPair, setCurrencyPair] = useState("EUR/USD");
+  const [accountBalance, setAccountBalance] = useState("10000");
   const [riskPercentage, setRiskPercentage] = useState("0");
   const [riskAmount, setRiskAmount] = useState("0");
   const [entryPrice, setEntryPrice] = useState("0");
@@ -609,6 +611,38 @@ export default function PositionSizeCalculator() {
     positionType,
     fetchExchangeRateForPair,
   ]);
+
+  // Load saved calculator values
+  useEffect(() => {
+    const loadSavedValues = async () => {
+      try {
+        // Load values from AsyncStorage
+        const savedAccountCurrency = await AsyncStorage.getItem(
+          STORAGE_KEYS.ACCOUNT_CURRENCY
+        );
+        // Only use saved account currency if it exists, otherwise use the one from context
+        if (savedAccountCurrency) {
+          setAccountCurrency(savedAccountCurrency);
+        } else {
+          // Set account currency from context if no saved value
+          setAccountCurrency(contextCurrency.code);
+        }
+
+        // Load other values...
+        const savedCurrencyPair = await AsyncStorage.getItem(
+          STORAGE_KEYS.CURRENCY_PAIR
+        );
+        if (savedCurrencyPair) setCurrencyPair(savedCurrencyPair);
+
+        // Continue loading other values...
+        // ...
+      } catch (error) {
+        console.error("Error loading calculator values:", error);
+      }
+    };
+
+    loadSavedValues();
+  }, [contextCurrency]);
 
   return (
     <View style={styles.container}>

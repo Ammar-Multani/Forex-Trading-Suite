@@ -19,6 +19,7 @@ import ResultDisplay from "../ui/ResultDisplay";
 import CurrencyPairSelector from "../ui/CurrencyPairSelector";
 import AccountCurrencySelector from "../ui/AccountCurrencySelector";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useExchangeRates } from "../../contexts/ExchangeRateContext";
 import PageHeader from "../ui/PageHeader";
 import env from "../../config/env";
 import {
@@ -74,7 +75,8 @@ export default function StopLossTakeProfitCalculator() {
 
   // State for inputs
   const { isDark } = useTheme();
-  const [accountCurrency, setAccountCurrency] = useState("USD");
+  const { accountCurrency: contextCurrency } = useExchangeRates();
+  const [accountCurrency, setAccountCurrency] = useState(contextCurrency.code);
   const [currencyPair, setCurrencyPair] = useState("EUR/USD");
   const [entryPrice, setEntryPrice] = useState("0");
   const [stopLossPrice, setStopLossPrice] = useState("0");

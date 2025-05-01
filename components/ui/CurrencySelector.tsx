@@ -8,12 +8,13 @@ import {
   Image,
 } from "react-native";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useExchangeRates } from "../../contexts/ExchangeRateContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Currency } from "../../constants/currencies";
 
 interface CurrencySelectorProps {
   label: string;
-  selectedCurrency: Currency;
+  selectedCurrency?: Currency;
   onPress: () => void;
 }
 
@@ -23,6 +24,10 @@ const CurrencySelector: React.FC<CurrencySelectorProps> = ({
   onPress,
 }) => {
   const { isDark } = useTheme();
+  const { accountCurrency } = useExchangeRates();
+
+  // Use account currency from context if no selectedCurrency is provided
+  const currency = selectedCurrency || accountCurrency;
 
   // Define colors based on theme
   const colors = {
@@ -51,7 +56,7 @@ const CurrencySelector: React.FC<CurrencySelectorProps> = ({
           <View style={styles.flagContainer}>
             <Image
               source={{
-                uri: `https://flagcdn.com/w160/${selectedCurrency.countryCode.toLowerCase()}.png`,
+                uri: `https://flagcdn.com/w160/${currency.countryCode.toLowerCase()}.png`,
               }}
               style={styles.flag}
               resizeMode="cover"
@@ -59,10 +64,10 @@ const CurrencySelector: React.FC<CurrencySelectorProps> = ({
           </View>
           <View style={styles.currencyInfo}>
             <Text style={[styles.currencyCode, { color: colors.text }]}>
-              {selectedCurrency.code}
+              {currency.code}
             </Text>
             <Text style={[styles.currencyName, { color: colors.subtext }]}>
-              {selectedCurrency.name}
+              {currency.name}
             </Text>
           </View>
         </View>
@@ -77,7 +82,7 @@ const CurrencySelector: React.FC<CurrencySelectorProps> = ({
             ]}
           >
             <Text style={[styles.currencySymbol, { color: colors.primary }]}>
-              {selectedCurrency.symbol}
+              {currency.symbol}
             </Text>
           </View>
           <Ionicons name="chevron-down" size={24} color={colors.primary} />

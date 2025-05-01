@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Modal,
@@ -12,6 +12,7 @@ import {
   SafeAreaView,
 } from "react-native";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useExchangeRates } from "../../contexts/ExchangeRateContext";
 import { Ionicons } from "@expo/vector-icons";
 import {
   currencies,
@@ -23,7 +24,7 @@ interface CurrencyPickerModalProps {
   visible: boolean;
   onClose: () => void;
   onSelect: (currency: Currency) => void;
-  selectedCurrency: string;
+  selectedCurrency?: string;
   title?: string;
 }
 
@@ -31,11 +32,22 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
   visible,
   onClose,
   onSelect,
-  selectedCurrency,
+  selectedCurrency: propSelectedCurrency,
   title = "Select Currency",
 }) => {
   const { isDark, theme, colors } = useTheme();
+  const { accountCurrency } = useExchangeRates();
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Use the provided selected currency code or default to account currency
+  const selectedCurrency = propSelectedCurrency || accountCurrency.code;
+
+  // Reset search when modal is opened
+  useEffect(() => {
+    if (visible) {
+      setSearchQuery("");
+    }
+  }, [visible]);
 
   // Filter currencies based on search query
   const filteredCurrencies = searchQuery
@@ -118,7 +130,6 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
       animationType="slide"
       transparent={false}
       onRequestClose={onClose}
-      statusBarTranslucent={true}
     >
       <SafeAreaView
         style={[

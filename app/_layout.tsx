@@ -29,6 +29,15 @@ export default function Layout() {
           }}
         />
         <Stack.Screen
+          name="onboarding"
+          options={{
+            headerShown: false,
+            gestureEnabled: false,
+            animation: "slide_from_right",
+            presentation: "transparentModal",
+          }}
+        />
+        <Stack.Screen
           name="calculators/[id]"
           options={({ route }) => ({
             title: getCalculatorTitle(route.params?.id),

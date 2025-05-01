@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../contexts/ThemeContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ONBOARDING_COMPLETE_KEY } from "./onboarding";
+
+// Currency constants
+const ACCOUNT_CURRENCY_KEY = "forex-trading-suite-account-currency";
 
 // Calculator cards data
 const calculators = [
@@ -84,6 +89,33 @@ const calculators = [
 export default function Home() {
   const router = useRouter();
   const { isDark } = useTheme();
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check if onboarding is completed
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const onboardingCompleted = await AsyncStorage.getItem(
+          ONBOARDING_COMPLETE_KEY
+        );
+        if (onboardingCompleted !== "true") {
+          // Redirect to onboarding if not completed
+          router.replace("/onboarding");
+        }
+      } catch (error) {
+        console.error("Error checking onboarding status:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkOnboarding();
+  }, [router]);
+
+  // Don't render the main content while checking onboarding status
+  if (isLoading) {
+    return null;
+  }
 
   const navigateToCalculator = (id: string) => {
     router.push(`/calculators/${id}`);
@@ -108,7 +140,7 @@ export default function Home() {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={[styles.title, { color: isDark ? "#fff" : "#000" }]}>
-            Forex Calculator Suite
+            FX Calculator Suite
           </Text>
           <Text style={[styles.subtitle, { color: isDark ? "#aaa" : "#666" }]}>
             Professional trading tools
@@ -141,13 +173,17 @@ export default function Home() {
             >
               <BlurView intensity={20} style={styles.cardBlur}>
                 <LinearGradient
-                  colors={calculator.color}
+                  colors={calculator.color as [string, string]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.cardGradient}
                 >
                   <View style={styles.iconContainer}>
-                    <Ionicons name={calculator.icon} size={28} color="#fff" />
+                    <Ionicons
+                      name={calculator.icon as any}
+                      size={28}
+                      color="#fff"
+                    />
                   </View>
                   <Text style={styles.calculatorName}>{calculator.name}</Text>
                   <Text style={styles.calculatorDescription}>
