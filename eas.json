@@ -14,6 +14,14 @@
         "simulator": true
       }
     },
+    "simulator": {
+      "extends": "development",
+      "ios": {
+        "simulator": true,
+        "distribution": "internal",
+        "buildConfiguration": "Debug"
+      }
+    },
     "preview": {
       "distribution": "internal",
       "android": {
