@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, ScrollView } from "react-native";
 import { TextInput, Divider, RadioButton, Text } from "react-native-paper";
 import {
   calculateProfitLoss,
@@ -223,11 +223,8 @@ export default function ProfitLossCalculator() {
   };
 
   return (
-    <View style={styles.container}>
-      <PageHeader
-        title="Profit/Loss Calculator"
-        subtitle="Calculate the profit/loss, pips, and return on investment for a trade"
-      />
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.maincardcontainer}>
       <CalculatorCard title="Profit/Loss Calculator">
         <View style={styles.inputsContainer}>
           <AccountCurrencySelector
@@ -326,6 +323,8 @@ export default function ProfitLossCalculator() {
           />
         </View>
 
+
+        </CalculatorCard>
         <Divider
           style={[
             styles.divider,
@@ -334,6 +333,7 @@ export default function ProfitLossCalculator() {
         />
 
         <View style={styles.resultsContainer}>
+          <CalculatorCard title="Results">
           <ResultDisplay
             label="Net profit"
             value={formatCurrency(profitLoss, accountCurrency)}
@@ -352,15 +352,20 @@ export default function ProfitLossCalculator() {
             value={`${roi.toFixed(2)}%`}
             color={roi >= 0 ? "#4CAF50" : "#FF5252"}
           />
-        </View>
       </CalculatorCard>
+        </View>
     </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingHorizontal: 16,
+  },
+  maincardcontainer: {
+    marginTop: 16,
   },
   inputsContainer: {
     marginBottom: 16,

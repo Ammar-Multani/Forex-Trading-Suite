@@ -5,14 +5,21 @@ export interface LotSize {
   editable: boolean;
 }
 
-export type LotType = 'Standard' | 'Mini' | 'Micro' | 'Nano' | 'Custom';
+export type LotType =
+  | "Standard"
+  | "Mini"
+  | "Micro"
+  | "Nano"
+  | "Custom"
+  | "Unit";
 
 export const defaultLotSizes: Record<string, LotSize> = {
-  Standard: { name: 'Standard', value: 100000, editable: true },
-  Mini: { name: 'Mini', value: 10000, editable: true },
-  Micro: { name: 'Micro', value: 1000, editable: true },
-  Nano: { name: 'Nano', value: 100, editable: true },
-  Custom: { name: 'Custom', value: 1, editable: true },
+  Standard: { name: "Standard", value: 100000, editable: true },
+  Mini: { name: "Mini", value: 10000, editable: true },
+  Micro: { name: "Micro", value: 1000, editable: true },
+  Nano: { name: "Nano", value: 100, editable: true },
+  Unit: { name: "Unit", value: 1, editable: true },
+  Custom: { name: "Custom", value: 1, editable: true },
 };
 
 // Calculate total units based on lot type and count
@@ -22,7 +29,7 @@ export const calculateTotalUnits = (
   customUnits: number,
   lotSizes: Record<string, LotSize>
 ): number => {
-  if (lotType === 'Custom') {
+  if (lotType === "Custom") {
     return customUnits;
   }
   return lotSizes[lotType].value * lotCount;
@@ -35,10 +42,10 @@ export const formatLotSize = (
   customUnits: number,
   lotSizes: Record<string, LotSize>
 ): string => {
-  if (lotType === 'Custom') {
+  if (lotType === "Custom") {
     return `${customUnits.toLocaleString()} units`;
   }
-  
+
   const totalUnits = lotSizes[lotType].value * lotCount;
   return `${lotCount} ${lotType} (${totalUnits.toLocaleString()} units)`;
 };

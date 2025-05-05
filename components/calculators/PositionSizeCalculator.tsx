@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
+  ScrollView,
 } from "react-native";
 import {
   TextInput,
@@ -61,6 +62,8 @@ const STORAGE_KEYS = {
   PIP_DECIMAL_PLACES: "position_calculator_pip_decimal_places",
   POSITION_TYPE: "position_calculator_position_type",
 };
+
+
 
 export default function PositionSizeCalculator() {
   // Add a ref to track if this is the first mount
@@ -645,11 +648,9 @@ export default function PositionSizeCalculator() {
   }, [contextCurrency]);
 
   return (
-    <View style={styles.container}>
-      <PageHeader
-        title="Position Size Calculator"
-        subtitle="Calculate the optimal position size based on your risk parameters"
-      />
+
+<ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+  <View style={styles.maincardcontainer}>
       <CalculatorCard title="Calculate Position Size">
         <View style={styles.inputsContainer}>
           <AccountCurrencySelector
@@ -881,10 +882,24 @@ export default function PositionSizeCalculator() {
             </View>
           )}
         </View>
+        </CalculatorCard>
+        </View>
 
-        <Divider style={styles.divider} />
+        <Divider
+            style={[
+              styles.divider,
+              {
+                backgroundColor: isDark
+                  ? "rgba(255, 255, 255, 0.1)"
+                  : "rgba(0, 0, 0, 0.1)",
+              },
+            ]}
+          />
 
-        {isCalculating ? (
+<View style={styles.resultsContainer}>
+  <CalculatorCard title="Results">
+    
+  {isCalculating ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#6200ee" />
             <Text style={styles.loadingText}>Calculating...</Text>
@@ -966,7 +981,7 @@ export default function PositionSizeCalculator() {
             />
           </View>
         )}
-      </CalculatorCard>
+
 
       {/* Risk Type Modal */}
       <Portal>
@@ -1075,7 +1090,10 @@ export default function PositionSizeCalculator() {
           </Button>
         </Modal>
       </Portal>
-    </View>
+  </CalculatorCard>
+</View>
+    </ScrollView>
+
   );
 }
 
@@ -1089,9 +1107,9 @@ const formatNumber = (num: number) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingHorizontal: 16,
   },
   inputsContainer: {
-    marginBottom: 16,
   },
   input: {
     marginBottom: 16,
@@ -1102,8 +1120,10 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   divider: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
     marginVertical: 16,
+  },
+  maincardcontainer: {
+    marginTop: 16,
   },
   resultsContainer: {
     marginTop: 8,

@@ -414,9 +414,32 @@ export const getCurrencyPairGroups = (): string[] => {
   return [...new Set(currencyPairs.map((pair) => pair.group))];
 };
 
-// Get currency pairs by group
+// Get currency pairs by group - original function that filters strictly by group
 export const getCurrencyPairsByGroup = (group: string): CurrencyPair[] => {
   return currencyPairs.filter((pair) => pair.group === group);
+};
+
+// Get currency pairs by currency code - new function that returns pairs containing the specified currency
+export const getCurrencyPairsByCurrency = (
+  currencyCode: string
+): CurrencyPair[] => {
+  return currencyPairs.filter(
+    (pair) => pair.base === currencyCode || pair.quote === currencyCode
+  );
+};
+
+// Get more inclusive currency pairs by group
+export const getInclusiveCurrencyPairsByGroup = (
+  group: string
+): CurrencyPair[] => {
+  // For Major, Exotic, and Other groups, use the standard group filter
+  if (["Major", "Exotic", "Other"].includes(group)) {
+    return getCurrencyPairsByGroup(group);
+  }
+
+  // For currency-specific groups (EUR, GBP, JPY, etc.),
+  // include all pairs containing that currency
+  return getCurrencyPairsByCurrency(group);
 };
 
 // Filter currencies by search term
@@ -431,13 +454,84 @@ export const filterCurrencies = (searchTerm: string): Currency[] => {
 
 // Filter currency pairs by search term
 export const filterCurrencyPairs = (searchTerm: string): CurrencyPair[] => {
-  const term = searchTerm.toLowerCase();
-  return currencyPairs.filter(
-    (pair) =>
-      pair.name.toLowerCase().includes(term) ||
-      pair.base.toLowerCase().includes(term) ||
-      pair.quote.toLowerCase().includes(term)
-  );
+  // If search term is empty, return all pairs
+  if (!searchTerm.trim()) return currencyPairs;
+
+  // Handle space-separated search terms
+  const searchTerms = searchTerm.toLowerCase().trim().split(/\s+/);
+
+  // Filter pairs that match all search terms
+  let result = currencyPairs.filter((pair) => {
+    // Check if all search terms match something in this pair
+    return searchTerms.every((term) => {
+      // Direct name match
+      if (pair.name.toLowerCase().includes(term)) {
+        return true;
+      }
+
+      // Match base or quote currency code
+      if (
+        pair.base.toLowerCase().includes(term) ||
+        pair.quote.toLowerCase().includes(term)
+      ) {
+        return true;
+      }
+
+      // Match base or quote currency name
+      const baseCurrency = getCurrencyByCode(pair.base);
+      const quoteCurrency = getCurrencyByCode(pair.quote);
+
+      if (baseCurrency && baseCurrency.name.toLowerCase().includes(term)) {
+        return true;
+      }
+
+      if (quoteCurrency && quoteCurrency.name.toLowerCase().includes(term)) {
+        return true;
+      }
+
+      // Check if the term is in the form "base/quote" or "base quote"
+      if (term.includes("/")) {
+        const [base, quote] = term.split("/");
+        return (
+          pair.base.toLowerCase().includes(base) &&
+          pair.quote.toLowerCase().includes(quote)
+        );
+      }
+
+      return false;
+    });
+  });
+
+  // Sort the results with priority given to pairs starting with the search term
+  const mainTerm = searchTerm.toLowerCase().trim().split(/\s+/)[0];
+
+  result.sort((a, b) => {
+    // Priority 1: Base currency starts with search term (highest priority)
+    const aBaseStartsWith = a.base.toLowerCase().startsWith(mainTerm);
+    const bBaseStartsWith = b.base.toLowerCase().startsWith(mainTerm);
+
+    if (aBaseStartsWith && !bBaseStartsWith) return -1;
+    if (!aBaseStartsWith && bBaseStartsWith) return 1;
+
+    // Priority 2: Pair name starts with search term
+    const aNameStartsWith = a.name.toLowerCase().startsWith(mainTerm);
+    const bNameStartsWith = b.name.toLowerCase().startsWith(mainTerm);
+
+    if (aNameStartsWith && !bNameStartsWith) return -1;
+    if (!aNameStartsWith && bNameStartsWith) return 1;
+
+    // Priority 3: Quote currency starts with search term
+    const aQuoteStartsWith = a.quote.toLowerCase().startsWith(mainTerm);
+    const bQuoteStartsWith = b.quote.toLowerCase().startsWith(mainTerm);
+
+    if (aQuoteStartsWith && !bQuoteStartsWith) return -1;
+    if (!aQuoteStartsWith && bQuoteStartsWith) return 1;
+
+    // Priority 4: Alphabetical order by name
+    return a.name.localeCompare(b.name);
+  });
+
+  return result;
 };
 
 // For backward compatibility with existing code

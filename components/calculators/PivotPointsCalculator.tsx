@@ -190,63 +190,60 @@ export default function PivotPointsCalculator() {
       if (method === "standard") {
         // Standard pivot points calculation
         const pivot = (high + low + close) / 3;
-        
+
         // Calculate resistance levels for Standard method
-        const r1 = 2 * pivot - low;         // R1 = 2 * PP - L
-        const r2 = pivot + range;           // R2 = PP + (H - L)
+        const r1 = 2 * pivot - low; // R1 = 2 * PP - L
+        const r2 = pivot + range; // R2 = PP + (H - L)
         // Modified R3 formula to match reference app precisely
         const r3 = high + 2 * (pivot - low); // R3 = H + 2(PP - L)
-        
+
         // Calculate support levels for Standard method
-        const s1 = 2 * pivot - high;        // S1 = 2 * PP - H
-        const s2 = pivot - range;           // S2 = PP - (H - L)
+        const s1 = 2 * pivot - high; // S1 = 2 * PP - H
+        const s2 = pivot - range; // S2 = PP - (H - L)
         // Modified S3 formula to match reference app precisely
         const s3 = low - 2 * (high - pivot); // S3 = L - 2(H - PP)
-        
+
         setPivot(pivot);
         setResistance([r1, r2, r3]);
         setSupport([s1, s2, s3]);
-      } 
-      else if (method === "woodie") {
+      } else if (method === "woodie") {
         // Woodie pivot points calculation
         const pivot = (high + low + 2 * close) / 4;
-        
+
         // Calculate resistance levels for Woodie method
-        const r1 = 2 * pivot - low;         // R1 = 2 * PP - L
-        const r2 = pivot + range;           // R2 = PP + (H - L)
+        const r1 = 2 * pivot - low; // R1 = 2 * PP - L
+        const r2 = pivot + range; // R2 = PP + (H - L)
         // Note: In some implementations, Woodie doesn't use R3, but we'll include it
-        const r3 = pivot + 2 * range;       // R3 = PP + 2 * (H - L)
-        
+        const r3 = pivot + 2 * range; // R3 = PP + 2 * (H - L)
+
         // Calculate support levels for Woodie method
-        const s1 = 2 * pivot - high;        // S1 = 2 * PP - H
-        const s2 = pivot - range;           // S2 = PP - (H - L)
-        const s3 = pivot - 2 * range;       // S3 = PP - 2 * (H - L)
-        
+        const s1 = 2 * pivot - high; // S1 = 2 * PP - H
+        const s2 = pivot - range; // S2 = PP - (H - L)
+        const s3 = pivot - 2 * range; // S3 = PP - 2 * (H - L)
+
         setPivot(pivot);
         setResistance([r1, r2, r3]);
         setSupport([s1, s2, s3]);
-      }
-      else if (method === "camarilla") {
+      } else if (method === "camarilla") {
         // Camarilla pivot points calculation
         const pivot = (high + low + close) / 3;
-        
+
         // Calculate resistance levels for Camarilla method
-        const r1 = close + (range * 1.1) / 12;   // R1 = C + ((H - L) * 1.1) / 12
-        const r2 = close + (range * 1.1) / 6;    // R2 = C + ((H - L) * 1.1) / 6
-        const r3 = close + (range * 1.1) / 4;    // R3 = C + ((H - L) * 1.1) / 4
-        const r4 = close + (range * 1.5) / 2;    // R4 = C + ((H - L) * 1.5) / 2
-        
+        const r1 = close + (range * 1.1) / 12; // R1 = C + ((H - L) * 1.1) / 12
+        const r2 = close + (range * 1.1) / 6; // R2 = C + ((H - L) * 1.1) / 6
+        const r3 = close + (range * 1.1) / 4; // R3 = C + ((H - L) * 1.1) / 4
+        const r4 = close + (range * 1.5) / 2; // R4 = C + ((H - L) * 1.5) / 2
+
         // Calculate support levels for Camarilla method
-        const s1 = close - (range * 1.1) / 12;   // S1 = C - ((H - L) * 1.1) / 12
-        const s2 = close - (range * 1.1) / 6;    // S2 = C - ((H - L) * 1.1) / 6
-        const s3 = close - (range * 1.1) / 4;    // S3 = C - ((H - L) * 1.1) / 4
-        const s4 = close - (range * 1.5) / 2;    // S4 = C - ((H - L) * 1.5) / 2
-        
+        const s1 = close - (range * 1.1) / 12; // S1 = C - ((H - L) * 1.1) / 12
+        const s2 = close - (range * 1.1) / 6; // S2 = C - ((H - L) * 1.1) / 6
+        const s3 = close - (range * 1.1) / 4; // S3 = C - ((H - L) * 1.1) / 4
+        const s4 = close - (range * 1.5) / 2; // S4 = C - ((H - L) * 1.5) / 2
+
         setPivot(pivot);
         setResistance([r1, r2, r3, r4]);
         setSupport([s1, s2, s3, s4]);
-      }
-      else if (method === "demark") {
+      } else if (method === "demark") {
         // DeMark pivot points calculation
         let x;
         if (close < open) {
@@ -256,29 +253,28 @@ export default function PivotPointsCalculator() {
         } else {
           x = high + low + close * 2;
         }
-        
+
         const pivot = x / 4;
-        const r1 = x / 2 - low;            // R1 = X/2 - L
-        const s1 = x / 2 - high;           // S1 = X/2 - H
-        
+        const r1 = x / 2 - low; // R1 = X/2 - L
+        const s1 = x / 2 - high; // S1 = X/2 - H
+
         setPivot(pivot);
-        setResistance([r1, r1, r1]);      // DeMark only has R1, duplicate for UI
-        setSupport([s1, s1, s1]);         // DeMark only has S1, duplicate for UI
-      }
-      else if (method === "fibonacci") {
+        setResistance([r1, r1, r1]); // DeMark only has R1, duplicate for UI
+        setSupport([s1, s1, s1]); // DeMark only has S1, duplicate for UI
+      } else if (method === "fibonacci") {
         // Fibonacci pivot points calculation
         const pivot = (high + low + close) / 3;
-        
+
         // Calculate resistance levels for Fibonacci method
-        const r1 = pivot + 0.382 * range;  // R1 = PP + 0.382 * (H - L)
-        const r2 = pivot + 0.618 * range;  // R2 = PP + 0.618 * (H - L)
-        const r3 = pivot + 1.000 * range;  // R3 = PP + 1.000 * (H - L)
-        
+        const r1 = pivot + 0.382 * range; // R1 = PP + 0.382 * (H - L)
+        const r2 = pivot + 0.618 * range; // R2 = PP + 0.618 * (H - L)
+        const r3 = pivot + 1.0 * range; // R3 = PP + 1.000 * (H - L)
+
         // Calculate support levels for Fibonacci method
-        const s1 = pivot - 0.382 * range;  // S1 = PP - 0.382 * (H - L)
-        const s2 = pivot - 0.618 * range;  // S2 = PP - 0.618 * (H - L)
-        const s3 = pivot - 1.000 * range;  // S3 = PP - 1.000 * (H - L)
-        
+        const s1 = pivot - 0.382 * range; // S1 = PP - 0.382 * (H - L)
+        const s2 = pivot - 0.618 * range; // S2 = PP - 0.618 * (H - L)
+        const s3 = pivot - 1.0 * range; // S3 = PP - 1.000 * (H - L)
+
         setPivot(pivot);
         setResistance([r1, r2, r3]);
         setSupport([s1, s2, s3]);
@@ -753,13 +749,10 @@ export default function PivotPointsCalculator() {
   );
 
   return (
-    <View style={styles.container}>
-      <PageHeader
-        title="Pivot Points Calculator"
-        subtitle="Calculate support and resistance levels for trading"
-      />
-      <CalculatorCard title="Calculate Pivot Points">
-        <ScrollView style={styles.scrollView} ref={scrollViewRef}>
+
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.maincardcontainer}>
+        <CalculatorCard title="Calculate Pivot Points">
           <View style={styles.methodSelectorContainer}>
             <View style={styles.methodHeader}>
               <Text
@@ -971,6 +964,8 @@ export default function PivotPointsCalculator() {
               </View>
             )}
           </View>
+          </CalculatorCard>
+          </View>
 
           <Divider
             style={[
@@ -982,15 +977,9 @@ export default function PivotPointsCalculator() {
               },
             ]}
           />
-
           <View style={styles.resultsContainer}>
-            <View style={styles.resultsHeader}>
-              <Text
-                variant="titleMedium"
-                style={{ color: isDark ? "#fff" : "#000" }}
-              >
-                Results
-              </Text>
+          <CalculatorCard title="Results">
+
               <View style={styles.resultActions}>
                 <IconButton
                   icon="refresh"
@@ -1014,7 +1003,7 @@ export default function PivotPointsCalculator() {
                   disabled={isCalculating || pivot === 0}
                 />
               </View>
-            </View>
+
 
             {calculationError && (
               <View style={styles.errorContainer}>
@@ -1461,9 +1450,8 @@ export default function PivotPointsCalculator() {
                 </View>
               </>
             )}
-          </View>
 
-          <Divider
+<Divider
             style={[
               styles.divider,
               {
@@ -2001,18 +1989,19 @@ export default function PivotPointsCalculator() {
               </View>
             )}
           </View>
-        </ScrollView>
-      </CalculatorCard>
-    </View>
+        </CalculatorCard>
+          </View>
+
+
+      </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  scrollView: {
-    flex: 1,
+    paddingHorizontal: 16,
+
   },
   methodSelectorContainer: {
     marginBottom: 16,
@@ -2044,17 +2033,17 @@ const styles = StyleSheet.create({
   divider: {
     marginVertical: 16,
   },
+  maincardcontainer: {
+    marginTop: 16,
+  },
   resultsContainer: {
     marginTop: 8,
   },
-  resultsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
   resultActions: {
     flexDirection: "row",
+    justifyContent: "flex-end",
+    bottom: 80,
+    marginBottom: -50,
   },
   pivotContainer: {
     padding: 16,

@@ -297,17 +297,6 @@ const ResultCard: React.FC<ResultCardProps> = ({
         {
           backgroundColor: colors.card,
           borderColor: colors.primary + "30",
-          ...Platform.select({
-            ios: {
-              shadowColor: colors.primary,
-              shadowOffset: { width: 0, height: 10 },
-              shadowOpacity: 0.2,
-              shadowRadius: 20,
-            },
-            android: {
-              elevation: 10,
-            },
-          }),
         },
       ]}
     >

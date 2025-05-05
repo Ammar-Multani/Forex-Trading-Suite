@@ -11,13 +11,10 @@ import {
   StatusBar,
   Image,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
-import {
-  Currency,
-  currencies,
-  filterCurrencies,
-} from "@/constants/currencies";
+import { Currency, currencies, filterCurrencies } from "@/constants/currencies";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { fetchExchangeRate } from "@/services/api";
@@ -35,13 +32,20 @@ const CurrencyModal: React.FC<CurrencyModalProps> = ({
   selectedCurrency,
   baseCurrency,
 }) => {
-  const { colors, theme, getGradient } = useTheme();
-  const isDarkMode = theme === "dark";
+  const { colors, isDark } = useTheme();
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredCurrencies, setFilteredCurrencies] =
     useState<Currency[]>(currencies);
   const [rateCache, setRateCache] = useState<Record<string, number>>({});
   const [loadingRates, setLoadingRates] = useState(false);
+  // Add favorites state
+  const [favorites, setFavorites] = useState<string[]>([
+    "USD",
+    "EUR",
+    "GBP",
+    "JPY",
+  ]);
+  const [showFavorites, setShowFavorites] = useState(false);
 
   const itemStyle = {
     flexDirection: "row" as const,
@@ -54,14 +58,21 @@ const CurrencyModal: React.FC<CurrencyModalProps> = ({
     borderWidth: 1,
   };
 
-  // Update filtered currencies when search term changes
+  // Update filtered currencies when search term or favorites filter changes
   useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredCurrencies(currencies);
-    } else {
-      setFilteredCurrencies(filterCurrencies(searchTerm));
+    let result = currencies;
+
+    if (searchTerm.trim() !== "") {
+      result = filterCurrencies(searchTerm);
     }
-  }, [searchTerm]);
+
+    // Filter by favorites if showFavorites is true
+    if (showFavorites) {
+      result = result.filter((curr) => favorites.includes(curr.code));
+    }
+
+    setFilteredCurrencies(result);
+  }, [searchTerm, showFavorites, favorites]);
 
   // Preload exchange rates if baseCurrency is provided
   useEffect(() => {
@@ -129,11 +140,26 @@ const CurrencyModal: React.FC<CurrencyModalProps> = ({
     onClose();
   };
 
+  // Toggle favorite status
+  const toggleFavorite = (currencyCode: string) => {
+    if (favorites.includes(currencyCode)) {
+      setFavorites(favorites.filter((code) => code !== currencyCode));
+    } else {
+      setFavorites([...favorites, currencyCode]);
+    }
+  };
+
+  // Handle favorites toggle with optimized callback
+  const handleFavoritesToggle = useCallback(() => {
+    setShowFavorites(!showFavorites);
+  }, [showFavorites]);
+
   // Render each currency item
   const renderCurrencyItem = ({ item }: { item: Currency }) => {
     const isSelected = selectedCurrency.code === item.code;
     const showRate = baseCurrency && baseCurrency.code !== item.code;
     const rate = showRate ? rateCache[item.code] : null;
+    const isFavorite = favorites.includes(item.code);
 
     return (
       <TouchableOpacity
@@ -163,13 +189,13 @@ const CurrencyModal: React.FC<CurrencyModalProps> = ({
           <Text style={[styles.currencyCode, { color: colors.text }]}>
             {item.code}
           </Text>
-          <Text style={[styles.currencyName, { color: colors.subtext }]}>
+          <Text style={[styles.currencyName, { color: colors.text + "99" }]}>
             {item.name}
           </Text>
 
           {showRate && (
             <View style={styles.rateContainer}>
-              <Text style={[styles.rateText, { color: colors.success }]}>
+              <Text style={[styles.rateText, { color: colors.primary }]}>
                 {rate
                   ? `1 ${baseCurrency.code} = ${rate.toFixed(4)} ${item.code}`
                   : "Loading rate..."}
@@ -188,6 +214,19 @@ const CurrencyModal: React.FC<CurrencyModalProps> = ({
               {item.symbol}
             </Text>
           </View>
+
+          {/* Favorite button */}
+          <TouchableOpacity
+            onPress={() => toggleFavorite(item.code)}
+            style={styles.favoriteButton}
+          >
+            <MaterialIcons
+              name={isFavorite ? "star" : "star-outline"}
+              size={22}
+              color={isFavorite ? colors.primary : colors.text + "66"}
+            />
+          </TouchableOpacity>
+
           {isSelected && (
             <MaterialIcons
               name="check"
@@ -205,11 +244,11 @@ const CurrencyModal: React.FC<CurrencyModalProps> = ({
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <LinearGradient
-        colors={getGradient("primary").colors}
-        start={getGradient("primary").start}
-        end={getGradient("primary").end}
+        colors={["#6366F1", "#4F46E5"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
         style={[styles.header]}
       >
         <TouchableOpacity
@@ -236,7 +275,7 @@ const CurrencyModal: React.FC<CurrencyModalProps> = ({
         <TextInput
           style={[styles.searchInput, { color: colors.text }]}
           placeholder="Search currencies..."
-          placeholderTextColor={colors.placeholder}
+          placeholderTextColor={colors.text + "66"}
           value={searchTerm}
           onChangeText={setSearchTerm}
           autoCapitalize="none"
@@ -249,15 +288,82 @@ const CurrencyModal: React.FC<CurrencyModalProps> = ({
             activeOpacity={0.7}
             style={styles.clearButton}
           >
-            <MaterialIcons name="cancel" size={20} color={colors.placeholder} />
+            <MaterialIcons name="cancel" size={20} color={colors.text + "66"} />
           </TouchableOpacity>
         )}
+      </View>
+
+      {/* Favorites filter */}
+      <View
+        style={{
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(0,0,0,0.05)",
+          backgroundColor: colors.background,
+        }}
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterContainer}
+          snapToAlignment="center"
+          decelerationRate="fast"
+          bounces={false}
+          removeClippedSubviews={false}
+        >
+          <TouchableOpacity
+            style={[
+              styles.filterPill,
+              {
+                backgroundColor: showFavorites ? colors.primary : colors.card,
+                borderColor: showFavorites ? colors.primary : colors.border,
+              },
+            ]}
+            onPress={handleFavoritesToggle}
+            activeOpacity={0.6}
+          >
+            <MaterialIcons
+              name={showFavorites ? "star" : "star-outline"}
+              size={16}
+              color={showFavorites ? "white" : colors.primary}
+              style={styles.filterIcon}
+            />
+            <Text
+              style={[
+                styles.filterText,
+                { color: showFavorites ? "white" : colors.text },
+              ]}
+            >
+              Favorites
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.filterPill,
+              {
+                backgroundColor: !showFavorites ? colors.primary : colors.card,
+                borderColor: !showFavorites ? colors.primary : colors.border,
+              },
+            ]}
+            onPress={() => setShowFavorites(false)}
+            activeOpacity={0.6}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                { color: !showFavorites ? "white" : colors.text },
+              ]}
+            >
+              All
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       {loadingRates && (
         <View style={styles.loadingIndicator}>
           <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.subtext }]}>
+          <Text style={[styles.loadingText, { color: colors.text + "99" }]}>
             Loading rates...
           </Text>
         </View>
@@ -406,6 +512,43 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     marginLeft: 8,
+  },
+  // New styles for favorites feature
+  filterContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: "center",
+    height: 52,
+    justifyContent: "center",
+  },
+  filterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    height: 36,
+    minWidth: 80,
+    borderWidth: 1,
+    borderRadius: 18,
+    marginRight: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
+    marginVertical: 8,
+  },
+  filterIcon: {
+    marginRight: 6,
+  },
+  filterText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  favoriteButton: {
+    padding: 4,
+    marginRight: 4,
   },
 });
 

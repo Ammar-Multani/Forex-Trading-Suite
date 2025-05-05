@@ -586,10 +586,6 @@ export default function FibonacciCalculator() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <PageHeader
-        title="Fibonacci Calculator"
-        subtitle="Calculate key price levels for trading"
-      />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -641,18 +637,6 @@ export default function FibonacciCalculator() {
           {renderResultsSection()}
         </CalculatorCard>
       </ScrollView>
-
-      <View style={styles.buttonContainer}>
-        <Button
-          mode="contained"
-          onPress={handleResetAll}
-          buttonColor={brandColors.accent}
-          icon="refresh"
-          style={styles.resetButton}
-        >
-          Reset Calculator
-        </Button>
-      </View>
     </View>
   );
 }
@@ -660,10 +644,12 @@ export default function FibonacciCalculator() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingHorizontal: 16,
   },
   scrollContent: {
     padding: 5,
     paddingBottom: 80,
+    paddingTop: 16,
   },
   cardContent: {
     padding: 0,

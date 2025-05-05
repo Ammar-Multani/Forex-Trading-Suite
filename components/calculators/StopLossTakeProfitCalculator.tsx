@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  ScrollView,
 } from "react-native";
 import { TextInput, Divider, RadioButton, Text } from "react-native-paper";
 import {
@@ -459,11 +460,8 @@ export default function StopLossTakeProfitCalculator() {
   const isLoading = isRefreshingEntryPrice || isApiLoading;
 
   return (
-    <View style={styles.container}>
-      <PageHeader
-        title="Stop Loss/Take Profit"
-        subtitle="Calculate the risk/reward ratio, stop loss pips, take profit pips, stop loss amount, and take profit amount"
-      />
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.maincardcontainer}>
       <CalculatorCard title="Stop Loss/Take Profit Calculator">
         <View style={styles.inputsContainer}>
           <AccountCurrencySelector
@@ -615,10 +613,21 @@ export default function StopLossTakeProfitCalculator() {
             }}
           />
         </View>
+        </CalculatorCard>
 
-        <Divider style={styles.divider} />
+        <Divider
+            style={[
+              styles.divider,
+              {
+                backgroundColor: isDark
+                  ? "rgba(255, 255, 255, 0.1)"
+                  : "rgba(0, 0, 0, 0.1)",
+              },
+            ]}
+          />
 
         <View style={styles.resultsContainer}>
+        <CalculatorCard title="Results">
           {calculationError && !isLoading ? (
             <>
               <View style={styles.warningContainer}>
@@ -700,15 +709,20 @@ export default function StopLossTakeProfitCalculator() {
               )}
             </>
           )}
+      </CalculatorCard> 
         </View>
-      </CalculatorCard>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingHorizontal: 16,
+  },
+  maincardcontainer: {
+    marginTop: 16,
   },
   inputsContainer: {
     marginBottom: 16,
@@ -740,7 +754,6 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   divider: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
     marginVertical: 16,
   },
   resultsContainer: {

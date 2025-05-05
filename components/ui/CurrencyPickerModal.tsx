@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Modal,
@@ -10,6 +10,7 @@ import {
   TextInput,
   StatusBar,
   SafeAreaView,
+  ScrollView,
 } from "react-native";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useExchangeRates } from "../../contexts/ExchangeRateContext";
@@ -39,6 +40,10 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
   const { accountCurrency } = useExchangeRates();
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Add state for favorites
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>(["USD", "EUR", "GBP"]);
+
   // Use the provided selected currency code or default to account currency
   const selectedCurrency = propSelectedCurrency || accountCurrency.code;
 
@@ -50,13 +55,35 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
   }, [visible]);
 
   // Filter currencies based on search query
-  const filteredCurrencies = searchQuery
+  let filteredCurrencies = searchQuery
     ? filterCurrencies(searchQuery)
     : currencies;
+
+  // Filter by favorites if enabled
+  if (showFavorites) {
+    filteredCurrencies = filteredCurrencies.filter((currency) =>
+      favorites.includes(currency.code)
+    );
+  }
+
+  // Toggle favorite status
+  const toggleFavorite = (currencyCode: string) => {
+    if (favorites.includes(currencyCode)) {
+      setFavorites(favorites.filter((code) => code !== currencyCode));
+    } else {
+      setFavorites([...favorites, currencyCode]);
+    }
+  };
+
+  // Toggle favorites view
+  const handleFavoritesToggle = useCallback(() => {
+    setShowFavorites(!showFavorites);
+  }, [showFavorites]);
 
   // Render each currency item
   const renderCurrencyItem = ({ item }: { item: Currency }) => {
     const isSelected = selectedCurrency === item.code;
+    const isFavorite = favorites.includes(item.code);
 
     return (
       <TouchableOpacity
@@ -100,25 +127,42 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
           </View>
         </View>
 
-        <View
-          style={[
-            styles.symbolContainer,
-            {
-              backgroundColor: isDark ? theme.colors.surfaceVariant : "#f0f0f0",
-              borderColor: isDark ? theme.colors.border : "#ccc",
-            },
-            isSelected && { backgroundColor: colors.primary },
-          ]}
-        >
-          <Text
+        <View style={styles.currencyItemRight}>
+          <View
             style={[
-              styles.symbolText,
-              { color: colors.primary },
-              isSelected && { color: "#fff" },
+              styles.symbolContainer,
+              {
+                backgroundColor: isDark
+                  ? theme.colors.surfaceVariant
+                  : "#f0f0f0",
+                borderColor: isDark ? theme.colors.border : "#ccc",
+              },
+              isSelected && { backgroundColor: colors.primary },
             ]}
           >
-            {item.symbol}
-          </Text>
+            <Text
+              style={[
+                styles.symbolText,
+                { color: colors.primary },
+                isSelected && { color: "#fff" },
+              ]}
+            >
+              {item.symbol}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => toggleFavorite(item.code)}
+            style={styles.favoriteButton}
+          >
+            <Ionicons
+              name={isFavorite ? "star" : "star-outline"}
+              size={20}
+              color={
+                isFavorite ? colors.primary : theme.colors.onSurfaceVariant
+              }
+            />
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -128,8 +172,9 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={false}
+      transparent={true}
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <SafeAreaView
         style={[
@@ -185,6 +230,80 @@ const CurrencyPickerModal: React.FC<CurrencyPickerModalProps> = ({
               </TouchableOpacity>
             )}
           </View>
+        </View>
+
+        {/* Favorites Filter */}
+        <View
+          style={[
+            styles.filterContainer,
+            {
+              borderBottomColor: isDark
+                ? "rgba(255,255,255,0.1)"
+                : "rgba(0,0,0,0.05)",
+            },
+          ]}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersScrollContent}
+          >
+            <TouchableOpacity
+              style={[
+                styles.filterPill,
+                {
+                  backgroundColor: showFavorites
+                    ? colors.primary
+                    : theme.colors.surface,
+                  borderColor: showFavorites
+                    ? colors.primary
+                    : theme.colors.onSurfaceVariant + "40",
+                },
+              ]}
+              onPress={handleFavoritesToggle}
+              activeOpacity={0.6}
+            >
+              <Ionicons
+                name={showFavorites ? "star" : "star-outline"}
+                size={16}
+                color={showFavorites ? "white" : colors.primary}
+                style={styles.filterIcon}
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  { color: showFavorites ? "white" : theme.colors.text },
+                ]}
+              >
+                Favorites
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.filterPill,
+                {
+                  backgroundColor: !showFavorites
+                    ? colors.primary
+                    : theme.colors.surface,
+                  borderColor: !showFavorites
+                    ? colors.primary
+                    : theme.colors.onSurfaceVariant + "40",
+                },
+              ]}
+              onPress={() => setShowFavorites(false)}
+              activeOpacity={0.6}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  { color: !showFavorites ? "white" : theme.colors.text },
+                ]}
+              >
+                All
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
 
         {/* Currency List */}
@@ -247,6 +366,38 @@ const styles = StyleSheet.create({
   clearButton: {
     padding: 4,
   },
+  filterContainer: {
+    borderBottomWidth: 1,
+    paddingVertical: 8,
+  },
+  filtersScrollContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    alignItems: "center",
+  },
+  filterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    height: 36,
+    minWidth: 80,
+    borderWidth: 1,
+    borderRadius: 18,
+    marginRight: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+  },
+  filterIcon: {
+    marginRight: 6,
+  },
+  filterText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
   list: {
     flex: 1,
   },
@@ -269,6 +420,10 @@ const styles = StyleSheet.create({
     borderColor: "#ccc",
   },
   currencyItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  currencyItemRight: {
     flexDirection: "row",
     alignItems: "center",
   },
@@ -298,21 +453,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 0.3,
+    marginRight: 8,
   },
   symbolText: {
     fontSize: 13,
     fontWeight: "600",
   },
-  checkContainer: {
-    position: "absolute",
-    right: 70,
-    top: "50%",
-    marginTop: -10,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
+  favoriteButton: {
+    padding: 4,
   },
 });
 

@@ -1,70 +1,33 @@
-import React from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
-import { useLocalSearchParams, Stack } from "expo-router";
+import React, { useEffect } from "react";
+import { View, StyleSheet, ActivityIndicator } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../contexts/ThemeContext";
 
-// Import calculator components
-import CompoundingCalculator from "../../components/calculators/CompoundingCalculator";
-import FibonacciCalculator from "../../components/calculators/FibonacciCalculator";
-import PipDifferenceCalculator from "../../components/calculators/PipDifferenceCalculator";
-import PipCalculator from "../../components/calculators/PipCalculator";
-import PivotPointsCalculator from "../../components/calculators/PivotPointsCalculator";
-import PositionSizeCalculator from "../../components/calculators/PositionSizeCalculator";
-import ProfitLossCalculator from "../../components/calculators/ProfitLossCalculator";
-import MarginCalculator from "../../components/calculators/RequiredMarginCalculator";
-import StopLossTakeProfitCalculator from "../../components/calculators/StopLossTakeProfitCalculator";
-
-export default function CalculatorScreen() {
+export default function CalculatorRedirect() {
   const { id } = useLocalSearchParams();
   const calculatorId = Array.isArray(id) ? id[0] : id;
   const { isDark } = useTheme();
+  const router = useRouter();
 
-  // Render the appropriate calculator based on the ID
-  const renderCalculator = () => {
-    switch (calculatorId) {
-      case "compounding":
-        return <CompoundingCalculator />;
-      case "fibonacci":
-        return <FibonacciCalculator />;
-      case "pip-difference":
-        return <PipDifferenceCalculator />;
-      case "pip-value":
-        return <PipCalculator />;
-      case "pivot-points":
-        return <PivotPointsCalculator />;
-      case "position-size":
-        return <PositionSizeCalculator />;
-      case "profit-loss":
-        return <ProfitLossCalculator />;
-      case "margin":
-        return <MarginCalculator />;
-      case "stop-loss":
-        return <StopLossTakeProfitCalculator />;
-      default:
-        return <View style={styles.notFound}></View>;
+  useEffect(() => {
+    // Redirect to the appropriate screen
+    if (calculatorId) {
+      router.replace(`/calculators/${calculatorId}`);
     }
-  };
+  }, [calculatorId, router]);
 
   return (
-    <>
-      <Stack.Screen options={{ headerShown: false }} />
-      <SafeAreaView
-        style={[
-          styles.container,
-          { backgroundColor: isDark ? "#121212" : "#f6f6f6" },
-        ]}
-        edges={["bottom"]}
-      >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {renderCalculator()}
-        </ScrollView>
-      </SafeAreaView>
-    </>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: isDark ? "#121212" : "#f6f6f6" },
+      ]}
+    >
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6200ee" />
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -72,14 +35,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 30,
-  },
-  notFound: {
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",

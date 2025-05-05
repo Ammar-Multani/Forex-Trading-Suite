@@ -5,16 +5,18 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  StatusBar,
+  Image,
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../contexts/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ONBOARDING_COMPLETE_KEY } from "./onboarding";
+import { IconButton } from "react-native-paper";
 
 // Currency constants
 const ACCOUNT_CURRENCY_KEY = "forex-trading-suite-account-currency";
@@ -88,7 +90,7 @@ const calculators = [
 
 export default function Home() {
   const router = useRouter();
-  const { isDark } = useTheme();
+  const { isDark, setThemeMode } = useTheme();
   const [isLoading, setIsLoading] = useState(true);
 
   // Check if onboarding is completed
@@ -129,33 +131,83 @@ export default function Home() {
     router.push("/exchange-rates");
   };
 
+  const handleThemeToggle = () => {
+    const newTheme = isDark ? "light" : "dark";
+    setThemeMode(newTheme);
+    // Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   return (
-    <SafeAreaView
+    <View
       style={[
         styles.container,
         { backgroundColor: isDark ? "#121212" : "#f6f6f6" },
       ]}
     >
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={[styles.title, { color: isDark ? "#fff" : "#000" }]}>
-            FX Calculator Suite
-          </Text>
-          <Text style={[styles.subtitle, { color: isDark ? "#aaa" : "#666" }]}>
-            Professional trading tools
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={navigateToSettings}
-          style={styles.settingsButton}
+      <StatusBar
+        style={isDark ? "light" : "dark"}
+        translucent={true}
+        backgroundColor="transparent"
+      />
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: isDark ? "#1A1A1A" : "#FFFFFF",
+            borderBottomColor: isDark
+              ? "rgba(75, 75, 75, 0.3)"
+              : "rgba(244, 238, 255, 0.8)",
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={
+            isDark
+              ? ["rgba(40, 40, 40, 0.8)", "rgba(30, 30, 30, 0.8)"]
+              : ["rgba(255, 255, 255, 1)", "rgba(250, 250, 250, 0.95)"]
+          }
+          style={styles.headerGradient}
         >
-          <Ionicons
-            name="settings-outline"
-            size={24}
-            color={isDark ? "#fff" : "#000"}
-          />
-        </TouchableOpacity>
+          <View style={styles.headerLeft}>
+            <View style={styles.logoContainer}>
+              <View style={styles.logoImageContainer}>
+                <Image
+                  source={
+                    isDark
+                      ? require("@/assets/adaptive-icon-dark.png")
+                      : require("@/assets/adaptive-icon-light.png")
+                  }
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+              </View>
+            </View>
+          </View>
+          <View style={styles.headerActions}>
+              
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handleThemeToggle}
+              hitSlop={{ top: 10, bottom: 12, left: 12, right: 12 }}
+            >
+              <View style={styles.iconButtonInner}>
+                <MaterialIcons
+                  name={isDark ? "light-mode" : "dark-mode"}
+                  size={24}
+                  color={isDark ? "#ffff" : "#242424"}
+                />
+              </View>
+            </TouchableOpacity>
+
+            <IconButton
+              icon="cog"
+              size={24}
+              iconColor={isDark ? "#ffff" : "#242424"}
+              style={styles.headerIcon}
+              onPress={navigateToSettings}
+            />
+          </View>
+        </LinearGradient>
       </View>
 
       <ScrollView
@@ -195,7 +247,7 @@ export default function Home() {
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -205,24 +257,76 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
   },
   header: {
-    padding: 20,
-    paddingBottom: 10,
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    paddingHorizontal: 25,
+    height: 95,
+    paddingBottom: 17,
+    borderBottomWidth: 1,
+    elevation: 3,
   },
-  headerContent: {
-    flex: 1,
-  },
-  headerButtons: {
+  headerGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 25,
+    paddingTop: 10,
   },
-  headerButton: {
-    padding: 4,
-    marginLeft: 16,
+  headerLeft: {
+    flexDirection: "column",
+    paddingTop: 16,
   },
-  settingsButton: {
-    padding: 4,
+  logoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  logoImageContainer: {
+    width: 98,
+    height: 58,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  logoImage: {
+    width: 212,
+    height: 212,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    opacity: 0.8,
+    letterSpacing: 0.3,
+  },
+  headerActions: {
+    flexDirection: "row",
+    paddingTop: 16,
+    left: 15,
+  },
+  headerIcon: {
+    marginLeft: 8,
+  },
+  iconButton: {
+    width: 30,
+    height: 50,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 0,
+    paddingTop: 2,
+  },
+  iconButtonInner: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   title: {
     fontSize: 26,

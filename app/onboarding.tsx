@@ -276,8 +276,8 @@ export default function OnboardingScreen() {
         <Image
           source={
             isDarkMode
-              ? require("../assets/splash-icon-light.png")
-              : require("../assets/splash-icon-dark.png")
+              ? require("../assets/splash-icon-dark.png")
+              : require("../assets/splash-icon-light.png")
           }
           style={styles.logoImage}
           resizeMode="contain"
@@ -1147,7 +1147,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
-    elevation: 6,
   },
   welcomeTitle: {
     fontSize: 28,
@@ -1235,7 +1234,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    elevation: 2,
   },
   themeIconContainer: {
     width: 46,
@@ -1282,7 +1280,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    elevation: 2,
   },
   featureIconContainer: {
     width: 46,

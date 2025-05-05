@@ -518,11 +518,6 @@ export default function CompoundingCalculator() {
   const { isDark } = useTheme();
   const { isLoading, lastUpdated, fetchRates, error, accountCurrency } =
     useExchangeRates();
-  // Add StatusBar configuration with background color matching the header
-  useEffect(() => {
-    StatusBar.setBackgroundColor(isDark ? "#121212" : "#f5f5f5");
-    StatusBar.setBarStyle(isDark ? "light-content" : "dark-content");
-  }, [isDark]);
 
   // Basic inputs
   const [currency, setCurrency] = useState<string>(accountCurrency.code);
@@ -1470,8 +1465,8 @@ export default function CompoundingCalculator() {
               styles.breakdownModal,
               {
                 backgroundColor: isDark
-                  ? "rgba(45, 45, 55, 0.95)"
-                  : "rgba(255, 255, 255, 0.95)",
+                  ? "rgb(45, 45, 55)"
+                  : "rgba(255, 255, 255)",
                 borderWidth: 1,
                 borderColor: isDark
                   ? "rgba(255, 255, 255, 0.2)"
@@ -1856,18 +1851,13 @@ export default function CompoundingCalculator() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <PageHeader
-          title="Compounding Calculator"
-          subtitle="Calculate and visualize the power of compound growth"
-        />
-
         <CalculatorCard
           title="Currency"
           icon="cash-outline"
@@ -2342,7 +2332,7 @@ export default function CompoundingCalculator() {
                 },
               ]}
             >
-              <Ionicons name="stats-chart" size={22} color="#9370DB" />
+              <Ionicons name="calculator-outline" size={22} color="#9370DB" />
             </View>
             <Text
               variant="titleMedium"
@@ -2695,23 +2685,23 @@ export default function CompoundingCalculator() {
             </Text>
           </TouchableOpacity>
         </View>
+        {/* {renderResetButton()} */}
       </ScrollView>
 
       {renderBreakdown()}
-
-      {/* Add reset button at the bottom */}
-      {renderResetButton()}
-    </SafeAreaView>
+    </View>
   );
 }
 
-// Enhanced styles without theme-dependent properties
+// Update styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingHorizontal: 16,
   },
   scrollView: {
     flex: 1,
+    paddingTop: 16,
   },
   sectionContainer: {
     marginBottom: 20,
@@ -2721,11 +2711,10 @@ const styles = StyleSheet.create({
   sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
+    width: 38,
+    height: 38,
     borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",

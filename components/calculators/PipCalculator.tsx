@@ -65,7 +65,7 @@ interface PipCalculatorProps {
   navigation: CalculatorScreenNavigationProp;
 }
 
-const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
+export default function PipCalculator() {
   const { colors, isDark } = useTheme();
   const { accountCurrency } = useExchangeRates();
   const [currencyPair, setCurrencyPair] = useState("EUR/USD");
@@ -411,19 +411,12 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
     setCurrency(selectedCurrency.code);
   };
 
-  // Custom header with history button
-  const renderHeader = () => {
-    return (
-      <PageHeader
-        title="Forex Pip Calculator"
-        subtitle="Calculate the pip value of your trades"
-      />
-    );
-  };
+
+
+
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {renderHeader()}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         scrollEnabled={true}
@@ -619,6 +612,7 @@ const PipCalculator: React.FC<PipCalculatorProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingHorizontal: 16,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -626,7 +620,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingBottom: 25,
-    paddingTop: 10,
+    paddingTop: 16,
   },
   content: {},
   calculateButton: {
@@ -741,4 +735,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PipCalculator;
+

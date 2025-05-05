@@ -216,11 +216,7 @@ export default function PipDifferenceCalculator() {
   };
 
   const copyToClipboard = (text: string) => {
-    // In a real app, you would use Clipboard.setString(text)
-    console.log("Copied to clipboard:", text);
-    Alert.alert("Copied", `${text} copied to clipboard`, [{ text: "OK" }], {
-      cancelable: true,
-    });
+   
   };
 
   const shareResult = async () => {
@@ -474,15 +470,11 @@ Direction: ${
   };
 
   return (
-    <View style={styles.container}>
-      <PageHeader
-        title="Pip Difference Calculator"
-        subtitle="Calculate the difference between two prices in pips"
-      />
+    <ScrollView style={styles.container}>
       <CalculatorCard title="Calculate Pip Difference">
         <View style={styles.inputsContainer}>
           <CurrencyPairSelector
-            label="Currency Pair"
+            label="Financial Instrument"
             selectedPair={currencyPair}
             onSelect={(pair) => setCurrencyPair(pair)}
           />
@@ -617,9 +609,9 @@ Direction: ${
               </View>
             </View>
           )}
-        </View>
-
-        <Divider
+          </View>
+          </CalculatorCard>
+          <Divider
           style={[
             styles.divider,
             {
@@ -629,15 +621,11 @@ Direction: ${
             },
           ]}
         />
-
+<View style={styles.resultsContainer}>
+<CalculatorCard title="Results">
         <View style={styles.resultsContainer}>
-          <View style={styles.resultHeader}>
-            <Text
-              variant="titleMedium"
-              style={{ color: isDark ? "#fff" : "#000" }}
-            >
-              Result
-            </Text>
+
+
             <View style={styles.resultActions}>
               <IconButton
                 icon="refresh"
@@ -658,7 +646,7 @@ Direction: ${
                 iconColor={isDark ? "#fff" : "#000"}
               />
             </View>
-          </View>
+
 
           <View
             style={[
@@ -684,12 +672,6 @@ Direction: ${
               >
                 Pip Difference
               </Text>
-              <Chip
-                style={{ height: 26 }}
-                textStyle={{ fontSize: 12, paddingTop: -5 }}
-              >
-                {pipDecimalPlaces} decimal{pipDecimalPlaces !== 1 ? "s" : ""}
-              </Chip>
             </View>
 
             <View style={styles.pipValueContainer}>
@@ -752,17 +734,6 @@ Direction: ${
             >
               {getMovementDescription()}
             </Text>
-          </View>
-
-          <View style={styles.infoContainer}>
-            <Chip
-              icon="information"
-              mode="outlined"
-              style={{ borderColor: isDark ? "#444" : "#ddd" }}
-              textStyle={{ color: isDark ? "#fff" : "#000" }}
-            >
-              Tap pip value to copy to clipboard
-            </Chip>
           </View>
         </View>
 
@@ -1145,13 +1116,16 @@ Direction: ${
           )}
         </View>
       </CalculatorCard>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   inputsContainer: {
     paddingTop: 20,
@@ -1164,6 +1138,9 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 0,
   },
+  divider: {
+    marginVertical: 16,
+  },
   swapButton: {
     marginHorizontal: 8,
   },
@@ -1172,20 +1149,15 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     marginBottom: 8,
   },
-  divider: {
-    marginVertical: 16,
-  },
   resultsContainer: {
-    marginTop: 8,
-  },
-  resultHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
+    marginTop: 15,
+    marginBottom: 17,
   },
   resultActions: {
     flexDirection: "row",
+    justifyContent: "flex-end",
+    bottom: 95,
+    marginBottom: -46,
   },
   resultCardContainer: {
     padding: 16,
