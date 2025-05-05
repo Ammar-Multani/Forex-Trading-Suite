@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.9.1"
+    "version": ">= 3.13.3",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -13,10 +14,20 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       }
     },
     "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease",
+        "image": "ubuntu-22.04-jdk-17-ndk-r26b"
+      },
+      "env": {
+        "NODE_ENV": "production"
+      }
     }
   },
   "submit": {
