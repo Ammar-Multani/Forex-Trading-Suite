@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Platform,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -260,11 +261,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 25,
-    height: 95,
-    paddingBottom: 17,
+    paddingTop: Platform.OS === "ios" ? 56 : 35,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    elevation: 3,
+    height: Platform.OS === "ios" ? 110 : 95,
+    zIndex: 10,
   },
   headerGradient: {
     position: "absolute",
@@ -276,7 +277,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 25,
-    paddingTop: 10,
+    paddingTop: Platform.OS === "ios" ? 25 : 5,
   },
   headerLeft: {
     flexDirection: "column",

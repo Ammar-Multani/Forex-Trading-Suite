@@ -281,10 +281,14 @@ const { width, height } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
   pageHeader: {
-    height: Platform.OS === "ios" ? 95 : 95,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: Platform.OS === "ios" ? 56 : 35,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    elevation: 3,
+    height: Platform.OS === "ios" ? 110 : 95,
+    zIndex: 10,
   },
   headerGradient: {
     position: "absolute",
@@ -292,9 +296,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingTop: Platform.OS === "ios" ? 50 : 40,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 17,
+    paddingTop: Platform.OS === "ios" ? 50 : 20,
   },
   headerRow: {
     flexDirection: "row",

@@ -12,14 +12,18 @@
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": [
-      "assets/fonts/*",
-      "assets/*.png"
-    ],
+    "assetBundlePatterns": ["assets/fonts/*", "assets/*.png"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.enacton.fxsuite",
-      "buildNumber": "1.0.0"
+      "buildNumber": "1.0.0",
+      "jsEngine": "hermes",
+      "bitcode": false,
+      "usesIcloudStorage": false,
+      "infoPlist": {
+        "UIBackgroundModes": [],
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "icon": "./assets/icon.png",
@@ -47,6 +51,21 @@
           "dark": {
             "image": "./assets/splash-icon-dark.png",
             "backgroundColor": "#151718"
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "deploymentTarget": "14.0"
+          },
+          "android": {
+            "compileSdkVersion": 33,
+            "targetSdkVersion": 33,
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
           }
         }
       ]

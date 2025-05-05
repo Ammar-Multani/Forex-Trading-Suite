@@ -1,6 +1,6 @@
 # App Size Optimization Summary
 
-This document summarizes the optimizations applied to reduce the app size.
+This document summarizes the optimizations applied to reduce the app size for both Android and iOS platforms.
 
 ## JavaScript Bundle Optimizations
 
@@ -35,8 +35,31 @@ This document summarizes the optimizations applied to reduce the app size.
    - Set proper optimization passes
 
 2. **Production Builds**: Updated build scripts to:
+
    - Use app bundles instead of APKs for production builds
    - Configure proper Gradle options for size optimization
+
+3. **Resource Shrinking**: Enabled resource shrinking in release builds using:
+   - `enableShrinkResourcesInReleaseBuilds` in build properties
+   - Configured appropriate SDK versions for optimization
+
+## iOS-Specific Optimizations
+
+1. **Build Settings**: Configured iOS build settings for optimization:
+
+   - Disabled bitcode which increases binary size
+   - Set `useFrameworks` to static for better size optimization
+   - Set minimum deployment target to 14.0 to avoid backward compatibility code
+   - Removed unused background modes and encryption settings
+
+2. **Production Configurations**: Added dedicated build profiles for iOS:
+
+   - Configured EAS build settings for optimized iOS builds
+   - Added scripts to run optimized iOS builds with proper environment variables
+
+3. **Framework Optimization**: Configured framework handling:
+   - Used static frameworks to reduce binary size
+   - Configured proper resource class for builds
 
 ## Build Process Optimizations
 
@@ -45,7 +68,7 @@ This document summarizes the optimizations applied to reduce the app size.
    - Ensures minification is enabled
    - Disables development features in production
 
-2. **Hermes JavaScript Engine**: Confirmed Hermes is enabled in app.json for better performance and smaller bundle size.
+2. **Hermes JavaScript Engine**: Confirmed Hermes is enabled in app.json for better performance and smaller bundle size on both platforms.
 
 ## Next Steps for Further Optimization
 
@@ -54,3 +77,4 @@ This document summarizes the optimizations applied to reduce the app size.
 3. **Tree Shaking**: Ensure unused code is properly eliminated from the bundle
 4. **Font Subsetting**: Consider subsetting fonts to include only used characters
 5. **Runtime Version Control**: Enabled runtime version policy in app.json for better updates management
+6. **App Thinning for iOS**: Consider implementing app thinning for iOS to further reduce app size for specific device targets

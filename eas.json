@@ -9,6 +9,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
       }
     },
     "preview": {
@@ -16,6 +19,9 @@
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
+      },
+      "ios": {
+        "distribution": "internal"
       }
     },
     "production": {
@@ -24,6 +30,12 @@
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease",
         "image": "ubuntu-22.04-jdk-17-ndk-r26b"
+      },
+      "ios": {
+        "image": "latest",
+        "resourceClass": "m-medium",
+        "distribution": "store",
+        "buildConfiguration": "Release"
       },
       "env": {
         "NODE_ENV": "production"
